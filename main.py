@@ -5,7 +5,7 @@ This module provides the entry point and user instructions for running
 the genetic algorithm simulation with competing populations.
 """
 
-from simulation import Simulation
+from simulator import Simulation
 
 
 def main():
