@@ -55,22 +55,26 @@ class Simulation:
         self.running = True         # Main loop control
         self.paused = False         # Pause/resume functionality
         
-        # Initialize both populations at designated spawn points
-        # Strategic spawn positioning to avoid initial clustering
-        spawn_positions = [
-            (50, 50),      # Top-left
-            (750, 50),     # Top-right  
-            (50, 550),     # Bottom-left
-            (750, 550),    # Bottom-right
-            (400, 300)     # Center
+        # Create separate spawn areas for each population
+        # GA1 (Cooperative) spawns on the left side
+        ga1_spawn_positions = [
+            (30, 50), (30, 150), (30, 250), (30, 350), (30, 450), (30, 550),
+            (80, 50), (80, 150), (80, 250), (80, 350), (80, 450), (80, 550),
+            (130, 50), (130, 150), (130, 250), (130, 350), (130, 450), (130, 550)
         ]
         
-        self.ga1.initialize_population(spawn_positions)
-        self.ga2.initialize_population(spawn_positions)
+        # GA2 (Aggressive) spawns on the right side  
+        ga2_spawn_positions = [
+            (750, 50), (750, 150), (750, 250), (750, 350), (750, 450), (750, 550),
+            (700, 100), (700, 200), (700, 300), (700, 400), (700, 500)
+        ]
+        
+        self.ga1.initialize_population(ga1_spawn_positions)
+        self.ga2.initialize_population(ga2_spawn_positions)
         
         print("Simulation initialized successfully!")
-        print(f"GA1 (Cooperative): {len(self.ga1.population)} agents")
-        print(f"GA2 (Aggressive): {len(self.ga2.population)} agents")
+        print(f"GA1 (Cooperative): {config.POPULATION_SIZE_GA1} agents")
+        print(f"GA2 (Aggressive): {config.POPULATION_SIZE_GA2} agents")
         print("Press SPACE to pause, R to reset, S to save data, ESC to exit")
     
     def run(self):
@@ -151,6 +155,17 @@ class Simulation:
                     print("Saving simulation data...")
                     self.analytics.save_data()
                     
+                elif event.key == pygame.K_a:
+                    # Generate analytics graphs
+                    print("Generating evolution analytics graphs...")
+                    self.analytics.create_evolution_graphs()
+                    
+                elif event.key == pygame.K_g:
+                    # Generate comprehensive evolution report
+                    print("Generating comprehensive evolution report...")
+                    report = self.analytics.generate_evolution_report()
+                    print(report)
+                    
                 elif event.key == pygame.K_ESCAPE:
                     # Exit simulation
                     self.running = False
@@ -182,8 +197,12 @@ class Simulation:
             dx, dy = agent.update(world_state)
             
             # Apply movement with boundary checking
-            # Movement speed scaling factor (5 pixels per direction unit)
-            movement_speed = 5
+            # Movement speed based on agent genetics: speed trait increases movement, size trait decreases it
+            base_movement_speed = 3
+            speed_modifier = 1 + (agent.genome.speed * 2)  # 1x to 3x speed
+            size_penalty = 1 - (agent.genome.size * 0.5)   # Up to 50% slower for large agents
+            movement_speed = base_movement_speed * speed_modifier * size_penalty
+            
             new_x = max(0, min(self.world.width - 20, agent.x + dx * movement_speed))
             new_y = max(0, min(self.world.height - 20, agent.y + dy * movement_speed))
             
@@ -225,15 +244,22 @@ class Simulation:
         print(report)
         
         # Execute genetic algorithm evolution for both populations
-        spawn_positions = [
-            (50, 50), (750, 50), (50, 550), (750, 550), (400, 300)
+        ga1_spawn_positions = [
+            (30, 50), (30, 150), (30, 250), (30, 350), (30, 450), (30, 550),
+            (80, 50), (80, 150), (80, 250), (80, 350), (80, 450), (80, 550),
+            (130, 50), (130, 150), (130, 250), (130, 350), (130, 450), (130, 550)
+        ]
+        
+        ga2_spawn_positions = [
+            (750, 50), (750, 150), (750, 250), (750, 350), (750, 450), (750, 550),
+            (700, 100), (700, 200), (700, 300), (700, 400), (700, 500)
         ]
         
         print("Evolving GA1 (Cooperative)...")
-        self.ga1.evolve_generation(spawn_positions)
+        self.ga1.evolve_generation(ga1_spawn_positions)
         
         print("Evolving GA2 (Aggressive)...")
-        self.ga2.evolve_generation(spawn_positions)
+        self.ga2.evolve_generation(ga2_spawn_positions)
         
         # Reset environment for fresh start
         print("Resetting world environment...")
@@ -266,9 +292,19 @@ class Simulation:
         self.analytics = Analytics()
         
         # Create new populations
-        spawn_positions = [(50, 50), (750, 50), (50, 550), (750, 550), (400, 300)]
-        self.ga1.initialize_population(spawn_positions)
-        self.ga2.initialize_population(spawn_positions)
+        ga1_spawn_positions = [
+            (30, 50), (30, 150), (30, 250), (30, 350), (30, 450), (30, 550),
+            (80, 50), (80, 150), (80, 250), (80, 350), (80, 450), (80, 550),
+            (130, 50), (130, 150), (130, 250), (130, 350), (130, 450), (130, 550)
+        ]
+        
+        ga2_spawn_positions = [
+            (750, 50), (750, 150), (750, 250), (750, 350), (750, 450), (750, 550),
+            (700, 100), (700, 200), (700, 300), (700, 400), (700, 500)
+        ]
+        
+        self.ga1.initialize_population(ga1_spawn_positions)
+        self.ga2.initialize_population(ga2_spawn_positions)
         
         print("Simulation reset complete!")
         print("New random populations generated.")

@@ -113,6 +113,38 @@ class World:
                     self.food.remove(food)  # Remove eaten food from world
                     break  # Agent can only eat one food per frame
             
+            # AGENT-TO-AGENT COMBAT: Aggressive agents attack cooperative ones
+            from config import AgentType
+            if (agent.agent_type == AgentType.AGGRESSIVE and agent.energy > 50):
+                
+                for other_agent in agents:
+                    if (other_agent != agent and other_agent.alive and 
+                        other_agent.agent_type == AgentType.COOPERATIVE):
+                        
+                        # Check if agents are close enough for combat (based on size)
+                        agent_size = 10 + (agent.genome.size * 15)  # 10-25 pixel radius
+                        other_size = 10 + (other_agent.genome.size * 15)
+                        collision_distance = agent_size + other_size
+                        
+                        distance = math.sqrt((agent.x - other_agent.x)**2 + (agent.y - other_agent.y)**2)
+                        if distance < collision_distance and random.random() < 0.3:  # 30% chance of attack
+                            # Combat! Larger agents do more damage
+                            base_damage = 15
+                            size_damage_bonus = agent.genome.size * 10  # Larger = more damage
+                            total_damage = base_damage + size_damage_bonus
+                            
+                            other_agent.energy = max(0, other_agent.energy - total_damage)
+                            agent.attacks_made += 1
+                            
+                            # Attacker gains energy from successful attack
+                            energy_gain = 8
+                            agent.energy = min(config.AGENT_ENERGY, agent.energy + energy_gain)
+                            
+                            if other_agent.energy <= 0:
+                                other_agent.alive = False
+                            
+                            break  # One attack per frame
+            
             # HAZARD DAMAGE: Check if agent is in dangerous area
             for hazard in self.hazards:
                 if abs(agent.x - hazard.x) < 20 and abs(agent.y - hazard.y) < 20:
@@ -125,8 +157,8 @@ class World:
         Provide environmental information visible to an agent for decision-making.
         
         This implements the agent's "sensory system" - what information they can
-        perceive about their environment. Limited vision range creates interesting
-        behaviors as agents must balance exploration vs exploitation.
+        perceive about their environment. Vision range is now determined by the
+        agent's genetic sense trait.
         
         Args:
             agent: The agent requesting world state information
@@ -135,7 +167,10 @@ class World:
         Returns:
             Dictionary containing nearby objects within agent's vision range
         """
-        vision_range = 100  # How far agents can "see"
+        # Vision range based on agent's sense trait (50-150 pixel range)
+        base_vision = 50
+        max_vision_bonus = 100
+        vision_range = base_vision + (agent.genome.sense * max_vision_bonus)
         
         # FOOD DETECTION: Find all food within vision range
         nearby_food = []

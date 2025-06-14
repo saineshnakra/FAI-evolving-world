@@ -143,12 +143,15 @@ class Visualization:
             color = (config.COLORS['AGENT_GA1'] if agent.agent_type == AgentType.COOPERATIVE 
                     else config.COLORS['AGENT_GA2'])
             
+            # Calculate agent size based on genome (5-15 pixel radius)
+            agent_radius = 5 + int(agent.genome.size * 10)
+            
             # Draw agent body as filled circle
             pygame.draw.circle(
                 self.screen, 
                 color, 
                 (int(agent.x + 10), int(agent.y + 10)),  # Center position
-                10  # Radius
+                agent_radius  # Radius based on size trait
             )
             
             # Draw agent outline for better visibility
@@ -156,7 +159,7 @@ class Visualization:
                 self.screen, 
                 (255, 255, 255),  # White outline
                 (int(agent.x + 10), int(agent.y + 10)), 
-                10, 
+                agent_radius, 
                 1  # Outline thickness
             )
             
@@ -309,7 +312,7 @@ class Visualization:
         
         # Display statistics
         stats = [
-            f"  Population: {total_agents}/{config.POPULATION_SIZE}",
+            f"  Population: {total_agents}/{self._get_max_population_for_type(ga)}",
             f"  Avg Fitness: {avg_fitness:.1f}",
             f"  Avg Energy: {avg_energy:.1f}",
             f"  Avg Food: {avg_food:.1f}",
@@ -374,8 +377,8 @@ class Visualization:
         y_offset += 20
         
         # Survival rates
-        ga1_survival = ga1_alive / config.POPULATION_SIZE
-        ga2_survival = ga2_alive / config.POPULATION_SIZE
+        ga1_survival = ga1_alive / config.POPULATION_SIZE_GA1
+        ga2_survival = ga2_alive / config.POPULATION_SIZE_GA2
         
         survival_text = f"  Survival: GA1 {ga1_survival:.1%}, GA2 {ga2_survival:.1%}"
         survival_surface = self.small_font.render(survival_text, True, config.COLORS['TEXT'])
@@ -403,7 +406,12 @@ class Visualization:
             "SPACE - Pause/Resume",
             "R - Reset Simulation", 
             "S - Save Data",
+            "A - Analytics Graphs",
+            "G - Full Report",
             "ESC - Exit",
+            "",
+            "⚠️  Extinct populations",
+            "will NOT restart!",
             "",
             "Watch for emergent",
             "behaviors and strategy",
@@ -418,4 +426,12 @@ class Visualization:
             color = config.COLORS['TEXT'] if not control.startswith("Watch") else (180, 180, 180)
             control_surface = self.small_font.render(control, True, color)
             self.screen.blit(control_surface, (self.ui_x, y_offset))
-            y_offset += 16 
+            y_offset += 16
+    
+    def _get_max_population_for_type(self, ga):
+        """Get the maximum population size for the given GA type."""
+        from config import AgentType
+        if ga.agent_type == AgentType.COOPERATIVE:
+            return config.POPULATION_SIZE_GA1
+        else:
+            return config.POPULATION_SIZE_GA2 

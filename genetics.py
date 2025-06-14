@@ -17,49 +17,31 @@ from config import config, AgentType
 @dataclass
 class Genome:
     """
-    Genetic representation of an agent's behavioral traits.
+    Simplified genetic representation with only three key traits.
     
-    This class encodes all heritable characteristics that determine how an agent
-    behaves in the world. Each trait is a floating-point value typically between 0-1.
+    This streamlined approach focuses on the most impactful characteristics:
+    - speed: How fast the agent moves (affects movement distance per frame)
+    - sense: How far the agent can perceive its environment (vision range)
+    - size: How big the agent is (affects collision detection, slows movement)
     
-    Attributes:
-        move_weights: Preferences for movement directions [up, down, left, right]
-        aggression: Tendency to attack other agents (0=peaceful, 1=highly aggressive)
-        food_priority: How much to prioritize seeking food (0=low, 1=high)
-        risk_tolerance: Willingness to approach dangerous areas (0=cautious, 1=reckless)
-        energy_conservation: Tendency to save energy when low (0=always move, 1=conservative)
-        attack_threshold: Energy level required before attacking others (0.0-1.0)
-        flee_threshold: Energy level that triggers fleeing behavior (0.0-1.0)
+    All traits are normalized between 0.0 and 1.0 for consistency.
     """
-    # Movement behavior - influences random walk patterns
-    move_weights: List[float]      # [up, down, left, right] movement preferences
-    
-    # Core behavioral traits that define agent personality
-    aggression: float              # Likelihood to attack other agents (0.0-1.0)
-    food_priority: float           # How much to prioritize food seeking (0.0-1.0)
-    risk_tolerance: float          # Willingness to approach hazards (0.0-1.0)
-    energy_conservation: float     # When to stop moving to save energy (0.0-1.0)
-    
-    # Decision-making thresholds that trigger specific behaviors
-    attack_threshold: float        # Energy level needed to attack (0.0-1.0)
-    flee_threshold: float          # Energy level that triggers fleeing (0.0-1.0)
+    speed: float        # Movement speed multiplier (0.0-1.0)
+    sense: float        # Vision range multiplier (0.0-1.0) 
+    size: float         # Size multiplier (0.0-1.0, larger = slower)
     
     @classmethod
     def random(cls) -> 'Genome':
         """
-        Generate a random genome for initial population or mutation recovery.
+        Generate a random genome with all three traits randomized.
         
         Returns:
-            Genome: A new genome with all traits randomized
+            Genome: A new genome with random trait values
         """
         return cls(
-            move_weights=[random.random() for _ in range(4)],  # Random movement preferences
-            aggression=random.random(),
-            food_priority=random.random(),
-            risk_tolerance=random.random(),
-            energy_conservation=random.random(),
-            attack_threshold=random.uniform(0.3, 0.8),  # Reasonable range for attacking
-            flee_threshold=random.uniform(0.2, 0.6)     # Reasonable range for fleeing
+            speed=random.random(),
+            sense=random.random(), 
+            size=random.random()
         )
 
 
@@ -159,12 +141,13 @@ class Agent:
     
     def _decide_action(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
         """
-        Make behavioral decision based on genome and current world state.
+        Make behavioral decision based on simplified genome and world state.
         
-        This function implements the agent's decision-making process:
-        1. Extract relevant information from world state
-        2. Apply genetic preferences to prioritize actions
-        3. Return movement decision
+        With the simplified genome, decision-making is streamlined:
+        - Agents always seek food when visible (survival priority)
+        - Movement is influenced by speed trait
+        - Aggressive agents (GA2) attack when close to cooperative agents
+        - Cooperative agents (GA1) flee from aggressive agents when low energy
         
         Args:
             world_state: Contains nearby food, agents, and hazards
@@ -175,53 +158,77 @@ class Agent:
         # Extract environmental information
         nearby_food = world_state.get('nearby_food', [])
         nearby_agents = world_state.get('nearby_agents', [])
-        nearby_hazards = world_state.get('nearby_hazards', [])
         
         dx, dy = 0, 0  # Default: no movement
         
-        # BEHAVIOR 1: Food-seeking behavior
-        # If food is visible and agent prioritizes food, move toward closest food
-        if nearby_food and random.random() < self.genome.food_priority:
+        # BEHAVIOR 1: Agent-to-agent interactions
+        if self.agent_type == AgentType.AGGRESSIVE and nearby_agents:
+            # Aggressive agents pursue cooperative agents
+            coop_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
+                          if agent_type == AgentType.COOPERATIVE]
+            if coop_agents:
+                # Move towards nearest cooperative agent
+                target_x, target_y, _ = min(coop_agents, 
+                    key=lambda agent_info: math.sqrt((agent_info[0] - self.x)**2 + (agent_info[1] - self.y)**2))
+                
+                if target_x > self.x:
+                    dx = 1
+                elif target_x < self.x:
+                    dx = -1
+                    
+                if target_y > self.y:
+                    dy = 1
+                elif target_y < self.y:
+                    dy = -1
+                
+                return dx, dy
+        
+        elif self.agent_type == AgentType.COOPERATIVE and nearby_agents and self.energy < 50:
+            # Cooperative agents flee from aggressive agents when low energy
+            aggr_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
+                          if agent_type == AgentType.AGGRESSIVE]
+            if aggr_agents:
+                # Move away from nearest aggressive agent
+                threat_x, threat_y, _ = min(aggr_agents, 
+                    key=lambda agent_info: math.sqrt((agent_info[0] - self.x)**2 + (agent_info[1] - self.y)**2))
+                
+                # Calculate direction away from threat
+                if threat_x > self.x:
+                    dx = -1
+                elif threat_x < self.x:
+                    dx = 1
+                    
+                if threat_y > self.y:
+                    dy = -1
+                elif threat_y < self.y:
+                    dy = 1
+                
+                return dx, dy
+        
+        # BEHAVIOR 2: Food-seeking (primary survival behavior)
+        if nearby_food:
             closest_food = min(nearby_food, key=lambda f: 
                              math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
             
             # Calculate direction to food
             if closest_food[0] > self.x:
-                dx = 1      # Move right toward food
+                dx = 1
             elif closest_food[0] < self.x:
-                dx = -1     # Move left toward food
+                dx = -1
                 
             if closest_food[1] > self.y:
-                dy = 1      # Move down toward food
+                dy = 1
             elif closest_food[1] < self.y:
-                dy = -1     # Move up toward food
+                dy = -1
         
-        # BEHAVIOR 2: Random exploration based on movement preferences
-        # If not pursuing food, move based on genetic movement weights
-        elif random.random() < 0.3:  # 30% chance of random movement
-            # Normalize movement weights to create probability distribution
-            total_weight = sum(self.genome.move_weights)
-            if total_weight > 0:
-                probabilities = [w / total_weight for w in self.genome.move_weights]
-                direction = np.random.choice(4, p=probabilities)
-                
-                # Apply chosen direction
-                if direction == 0:
-                    dy = -1    # Up
-                elif direction == 1:
-                    dy = 1     # Down
-                elif direction == 2:
-                    dx = -1    # Left
-                elif direction == 3:
-                    dx = 1     # Right
-        
-        # BEHAVIOR 3: Hazard avoidance (future enhancement)
-        # TODO: Implement hazard avoidance based on risk_tolerance
-        
-        # BEHAVIOR 4: Agent interaction (future enhancement)  
-        # TODO: Implement attack/flee behavior based on aggression and thresholds
+        # BEHAVIOR 3: Random exploration when no targets
+        elif random.random() < 0.4:  # 40% chance of random movement
+            dx = random.choice([-1, 0, 1])
+            dy = random.choice([-1, 0, 1])
         
         return dx, dy
+    
+
 
 
 class GeneticAlgorithm:
@@ -260,10 +267,31 @@ class GeneticAlgorithm:
             spawn_positions: List of (x, y) coordinates where agents can spawn
         """
         self.population = []
-        for i in range(config.POPULATION_SIZE):
+        
+        # Use different population sizes for different agent types
+        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+        
+        for i in range(population_size):
             # Cycle through spawn positions if there are fewer positions than agents
             pos = spawn_positions[i % len(spawn_positions)]
-            agent = Agent(pos[0], pos[1], self.agent_type)
+            
+            # Create genome with biased traits based on agent type
+            if self.agent_type == AgentType.COOPERATIVE:
+                # GA1 starts with higher speed advantage
+                genome = Genome(
+                    speed=random.uniform(0.6, 1.0),  # Higher starting speed (60-100%)
+                    sense=random.random(),            # Random sense
+                    size=random.uniform(0.0, 0.4)    # Smaller starting size (faster)
+                )
+            else:
+                # GA2 starts with more balanced traits
+                genome = Genome(
+                    speed=random.uniform(0.2, 0.6),  # Lower starting speed (20-60%)
+                    sense=random.random(),            # Random sense  
+                    size=random.uniform(0.4, 0.8)    # Larger starting size (more damage)
+                )
+            
+            agent = Agent(pos[0], pos[1], self.agent_type, genome)
             self.population.append(agent)
     
     def evolve_generation(self, spawn_positions: List[Tuple[int, int]]):
@@ -287,8 +315,8 @@ class GeneticAlgorithm:
         alive_agents = [agent for agent in self.population if agent.alive]
         
         if not alive_agents:
-            # EXTINCTION RECOVERY: If all agents died, restart with random population
-            print(f"Population extinction in {self.agent_type.value}! Restarting...")
+            # EXTINCTION RECOVERY: Restart with random population
+            print(f"Population extinction in {self.agent_type.value}! Restarting with random genomes...")
             self.initialize_population(spawn_positions)
             return
             
@@ -313,7 +341,9 @@ class GeneticAlgorithm:
             new_population.append(new_agent)
         
         # REPRODUCTION: Generate remaining population through crossover and mutation
-        while len(new_population) < config.POPULATION_SIZE:
+        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+        
+        while len(new_population) < population_size:
             if len(alive_agents) >= 2:
                 # Normal case: select two parents for reproduction
                 parent1 = self._tournament_selection()
@@ -388,17 +418,9 @@ class GeneticAlgorithm:
             Genome: New child genome with mixed traits
         """
         new_genome = Genome(
-            # For each movement weight, randomly choose from parent1 or parent2
-            move_weights=[g1 if random.random() < 0.5 else g2 
-                         for g1, g2 in zip(genome1.move_weights, genome2.move_weights)],
-            
-            # For each behavioral trait, randomly inherit from one parent
-            aggression=genome1.aggression if random.random() < 0.5 else genome2.aggression,
-            food_priority=genome1.food_priority if random.random() < 0.5 else genome2.food_priority,
-            risk_tolerance=genome1.risk_tolerance if random.random() < 0.5 else genome2.risk_tolerance,
-            energy_conservation=genome1.energy_conservation if random.random() < 0.5 else genome2.energy_conservation,
-            attack_threshold=genome1.attack_threshold if random.random() < 0.5 else genome2.attack_threshold,
-            flee_threshold=genome1.flee_threshold if random.random() < 0.5 else genome2.flee_threshold
+            speed=genome1.speed if random.random() < 0.5 else genome2.speed,
+            sense=genome1.sense if random.random() < 0.5 else genome2.sense,
+            size=genome1.size if random.random() < 0.5 else genome2.size
         )
         return new_genome
     
@@ -417,15 +439,8 @@ class GeneticAlgorithm:
             Genome: Mutated version with modified traits
         """
         mutated_genome = Genome(
-            # Mutate movement weights: add small random changes, keep in [0,1] range
-            move_weights=[max(0, min(1, w + random.gauss(0, 0.1))) for w in genome.move_weights],
-            
-            # Mutate behavioral traits: small Gaussian perturbations
-            aggression=max(0, min(1, genome.aggression + random.gauss(0, 0.1))),
-            food_priority=max(0, min(1, genome.food_priority + random.gauss(0, 0.1))),
-            risk_tolerance=max(0, min(1, genome.risk_tolerance + random.gauss(0, 0.1))),
-            energy_conservation=max(0, min(1, genome.energy_conservation + random.gauss(0, 0.1))),
-            attack_threshold=max(0, min(1, genome.attack_threshold + random.gauss(0, 0.1))),
-            flee_threshold=max(0, min(1, genome.flee_threshold + random.gauss(0, 0.1)))
+            speed=max(0, min(1, genome.speed + random.gauss(0, 0.1))),
+            sense=max(0, min(1, genome.sense + random.gauss(0, 0.1))),
+            size=max(0, min(1, genome.size + random.gauss(0, 0.1)))
         )
         return mutated_genome 

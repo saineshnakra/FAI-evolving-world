@@ -29,18 +29,20 @@ class Config:
     GRID_SIZE: int = 20             # Size of world grid cells (for collision detection)
     
     # Population genetics settings
-    POPULATION_SIZE: int = 50       # Number of agents per genetic algorithm
-    MAX_GENERATIONS: int = 100      # Maximum generations to simulate
+    POPULATION_SIZE_GA1: int = 30       # Cooperative agents (larger population)
+    POPULATION_SIZE_GA2: int = 10       # Aggressive agents (smaller population)
+    POPULATION_SIZE: int = 50           # Keep for backwards compatibility
+    MAX_GENERATIONS: int = 100          # Maximum generations to simulate
     
-    # Environment dynamics
-    FOOD_COUNT: int = 30            # Initial number of food items in world
-    HAZARD_COUNT: int = 10          # Number of hazardous areas
-    FOOD_SPAWN_RATE: float = 0.1    # Probability of new food spawning each frame (0.0-1.0)
+    # Environment dynamics - IMPROVED FOR BETTER SURVIVAL
+    FOOD_COUNT: int = 80            # Increased initial food availability
+    HAZARD_COUNT: int = 5           # Reduced hazards for better survival
+    FOOD_SPAWN_RATE: float = 0.25   # Increased food spawn rate (more frequent spawning)
     
-    # Agent energy and survival mechanics
-    AGENT_ENERGY: int = 100         # Starting energy for each agent
-    MOVEMENT_COST: int = 1          # Energy lost per movement action
-    EATING_REWARD: int = 20         # Energy gained from eating food
+    # Agent energy and survival mechanics - IMPROVED FOR SURVIVAL
+    AGENT_ENERGY: int = 150         # Increased starting energy
+    MOVEMENT_COST: int = 0.5        # Reduced energy cost for movement
+    EATING_REWARD: int = 30         # Increased energy from food
     SURVIVAL_REWARD: int = 1        # Fitness bonus per frame survived
     
     # Genetic algorithm parameters
