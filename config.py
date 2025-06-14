@@ -29,15 +29,15 @@ class Config:
     GRID_SIZE: int = 20             # Size of world grid cells (for collision detection)
     
     # Population genetics settings
-    POPULATION_SIZE_GA1: int = 30       # Cooperative agents (larger population)
+    POPULATION_SIZE_GA1: int = 100      # Cooperative agents (larger population)
     POPULATION_SIZE_GA2: int = 10       # Aggressive agents (smaller population)
     POPULATION_SIZE: int = 50           # Keep for backwards compatibility
     MAX_GENERATIONS: int = 100          # Maximum generations to simulate
     
     # Environment dynamics - IMPROVED FOR BETTER SURVIVAL
-    FOOD_COUNT: int = 80            # Increased initial food availability
-    HAZARD_COUNT: int = 5           # Reduced hazards for better survival
-    FOOD_SPAWN_RATE: float = 0.25   # Increased food spawn rate (more frequent spawning)
+    FOOD_COUNT: int = 120           # Even more initial food availability
+    HAZARD_COUNT: int = 8           # More hazards to make them noticeable
+    FOOD_SPAWN_RATE: float = 0.35   # Very high food spawn rate
     
     # Agent energy and survival mechanics - IMPROVED FOR SURVIVAL
     AGENT_ENERGY: int = 150         # Increased starting energy

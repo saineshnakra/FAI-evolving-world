@@ -20,15 +20,16 @@ class Genome:
     Simplified genetic representation with only three key traits.
     
     This streamlined approach focuses on the most impactful characteristics:
-    - speed: How fast the agent moves (affects movement distance per frame)
-    - sense: How far the agent can perceive its environment (vision range)
-    - size: How big the agent is (affects collision detection, slows movement)
+    - speed: Movement speed multiplier (0.0-1.0) - affects how fast agent moves
+    - sense: Vision/sight range multiplier (0.0-1.0) - determines how far agent can see food, enemies, and hazards (50-150 pixels)
+    - size: Agent size multiplier (0.0-1.0) - affects collision detection, combat damage, and movement penalty
     
     All traits are normalized between 0.0 and 1.0 for consistency.
+    Vision range formula: 50 + (sense * 100) pixels = 50-150 pixel sight range
     """
     speed: float        # Movement speed multiplier (0.0-1.0)
-    sense: float        # Vision range multiplier (0.0-1.0) 
-    size: float         # Size multiplier (0.0-1.0, larger = slower)
+    sense: float        # Vision/sight range multiplier (0.0-1.0) -> 50-150 pixels sight range
+    size: float         # Size multiplier (0.0-1.0, larger = slower but more damage)
     
     @classmethod
     def random(cls) -> 'Genome':
@@ -133,11 +134,12 @@ class Agent:
             self.fitness = base_fitness + energy_bonus
             
         else:
-            # GA2 Strategy: Aggressive and competitive  
-            # Rewards resource acquisition through competition and dominance
-            aggression_bonus = self.attacks_made * 5    # Reward successful attacks
-            resource_bonus = self.food_collected * 2    # Extra reward for food acquisition
-            self.fitness = base_fitness + aggression_bonus + resource_bonus
+            # GA2 Strategy: Aggressive and carnivorous  
+            # Rewards successful hunting and dominance, not food collection
+            hunt_bonus = self.attacks_made * 15      # High reward for successful attacks
+            survival_bonus = self.age * 0.2          # Bonus for staying alive longer
+            # Remove food collection bonus since GA2 doesn't eat regular food
+            self.fitness = (self.age * 0.1) + hunt_bonus + survival_bonus
     
     def _decide_action(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
         """
@@ -206,7 +208,8 @@ class Agent:
                 return dx, dy
         
         # BEHAVIOR 2: Food-seeking (primary survival behavior)
-        if nearby_food:
+        # Only GA1 agents seek food - GA2 agents are carnivorous hunters
+        if nearby_food and self.agent_type == AgentType.COOPERATIVE:
             closest_food = min(nearby_food, key=lambda f: 
                              math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
             
@@ -261,38 +264,101 @@ class GeneticAlgorithm:
         
     def initialize_population(self, spawn_positions: List[Tuple[int, int]]):
         """
-        Create the first generation with random genomes.
+        Create the first generation using genetic algorithm operations on random seed population.
+        
+        Process:
+        1. Create random seed population with diverse traits
+        2. Assign random fitness values to simulate initial selection pressure
+        3. Apply genetic algorithm operations (selection, crossover, mutation)
+        4. Result: Starting population that follows GA principles but has trait diversity
         
         Args:
             spawn_positions: List of (x, y) coordinates where agents can spawn
         """
-        self.population = []
-        
-        # Use different population sizes for different agent types
         population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
         
-        for i in range(population_size):
-            # Cycle through spawn positions if there are fewer positions than agents
+        # STEP 1: Create random seed population (larger than target for selection)
+        seed_population = []
+        seed_size = population_size * 2  # Create 2x population for better selection diversity
+        
+        for i in range(seed_size):
             pos = spawn_positions[i % len(spawn_positions)]
             
-            # Create genome with biased traits based on agent type
-            if self.agent_type == AgentType.COOPERATIVE:
-                # GA1 starts with higher speed advantage
-                genome = Genome(
-                    speed=random.uniform(0.6, 1.0),  # Higher starting speed (60-100%)
-                    sense=random.random(),            # Random sense
-                    size=random.uniform(0.0, 0.4)    # Smaller starting size (faster)
-                )
-            else:
-                # GA2 starts with more balanced traits
-                genome = Genome(
-                    speed=random.uniform(0.2, 0.6),  # Lower starting speed (20-60%)
-                    sense=random.random(),            # Random sense  
-                    size=random.uniform(0.4, 0.8)    # Larger starting size (more damage)
-                )
+            # Create completely random genome - maximum diversity
+            genome = Genome(
+                speed=random.random(),  # Random speed (0-100%)
+                sense=random.random(),  # Random sense/sight range (0-100%)
+                size=random.random()    # Random size (0-100%)
+            )
             
             agent = Agent(pos[0], pos[1], self.agent_type, genome)
-            self.population.append(agent)
+            
+            # Assign random fitness to simulate initial performance variation
+            # This creates selection pressure even before agents have "lived"
+            agent.fitness = random.uniform(10, 100)  # Random fitness 10-100
+            
+            seed_population.append(agent)
+        
+        # STEP 2: Apply genetic algorithm operations to create actual starting population
+        self.population = []
+        
+        # ELITISM: Keep some of the "best" random agents (top 20%)
+        elite_count = max(1, seed_size // 5)
+        elite_agents = sorted(seed_population, key=lambda x: x.fitness, reverse=True)[:elite_count]
+        
+        # Add elite agents to starting population (with new positions)
+        for agent in elite_agents[:population_size//4]:  # Use 25% elites
+            pos = random.choice(spawn_positions)
+            new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
+            self.population.append(new_agent)
+        
+        # REPRODUCTION: Generate remaining population through GA operations
+        while len(self.population) < population_size:
+            # Select two parents using tournament selection from seed population
+            parent1 = self._tournament_selection_from_population(seed_population)
+            parent2 = self._tournament_selection_from_population(seed_population)
+            
+            # CROSSOVER: Combine genetic material from two parents
+            if random.random() < config.CROSSOVER_RATE:
+                child_genome = self._crossover(parent1.genome, parent2.genome)
+            else:
+                # No crossover: clone better parent
+                child_genome = parent1.genome if parent1.fitness > parent2.fitness else parent2.genome
+            
+            # MUTATION: Apply random changes to traits
+            if random.random() < config.MUTATION_RATE:
+                child_genome = self._mutate(child_genome)
+            
+            # Create new agent with evolved genome
+            pos = random.choice(spawn_positions)
+            child = Agent(pos[0], pos[1], self.agent_type, child_genome)
+            self.population.append(child)
+        
+        print(f"Initialized {self.agent_type.value} with GA-processed population:")
+        print(f"  Population size: {len(self.population)}")
+        
+        # Display trait diversity in starting population
+        speeds = [agent.genome.speed for agent in self.population]
+        senses = [agent.genome.sense for agent in self.population]
+        sizes = [agent.genome.size for agent in self.population]
+        
+        print(f"  Speed range: {min(speeds):.2f} - {max(speeds):.2f}")
+        print(f"  Sense range: {min(senses):.2f} - {max(senses):.2f}")
+        print(f"  Size range: {min(sizes):.2f} - {max(sizes):.2f}")
+    
+    def _tournament_selection_from_population(self, population: List[Agent]) -> Agent:
+        """
+        Tournament selection from a specific population (used for initialization).
+        
+        Args:
+            population: Population to select from
+            
+        Returns:
+            Agent: Selected agent
+        """
+        tournament_size = min(config.TOURNAMENT_SIZE, len(population))
+        tournament = random.sample(population, tournament_size)
+        return max(tournament, key=lambda x: x.fitness)
     
     def evolve_generation(self, spawn_positions: List[Tuple[int, int]]):
         """

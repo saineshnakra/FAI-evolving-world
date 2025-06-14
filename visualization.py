@@ -7,6 +7,7 @@ the simulation world, agents, and user interface.
 
 import pygame
 from typing import List
+import time
 
 from config import config, AgentType
 
@@ -109,19 +110,27 @@ class Visualization:
         
         # Draw hazards as red squares
         for hazard in world.hazards:
+            # Draw larger, more visible hazard area
             pygame.draw.rect(
                 self.screen, 
                 config.COLORS['HAZARD'], 
-                (hazard.x, hazard.y, 20, 20)
+                (hazard.x - 5, hazard.y - 5, 30, 30)  # Larger hazard zone
             )
             
-            # Add warning border
+            # Add pulsing warning border
+            pulse = int(time.time() * 10) % 2  # Pulse every 0.1 seconds
+            border_color = (255, 100, 100) if pulse else (150, 0, 0)
             pygame.draw.rect(
                 self.screen, 
-                (200, 0, 0),  # Darker red
-                (hazard.x, hazard.y, 20, 20), 
-                2  # Border thickness
+                border_color,
+                (hazard.x - 8, hazard.y - 8, 36, 36), 
+                3  # Thick warning border
             )
+            
+            # Add danger symbol (X)
+            font = pygame.font.Font(None, 20)
+            danger_text = font.render("X", True, (255, 255, 255))
+            self.screen.blit(danger_text, (hazard.x + 5, hazard.y + 5))
     
     def _draw_agents(self, agents: List):
         """
@@ -140,8 +149,15 @@ class Visualization:
                 continue  # Don't render dead agents
             
             # Choose color based on agent population
-            color = (config.COLORS['AGENT_GA1'] if agent.agent_type == AgentType.COOPERATIVE 
-                    else config.COLORS['AGENT_GA2'])
+            base_color = (config.COLORS['AGENT_GA1'] if agent.agent_type == AgentType.COOPERATIVE 
+                         else config.COLORS['AGENT_GA2'])
+            
+            # Flash red if agent is taking hazard damage
+            if hasattr(agent, 'in_hazard') and agent.in_hazard > 0:
+                agent.in_hazard -= 1  # Countdown the flash effect
+                color = (255, 100, 100)  # Flash red when in hazard
+            else:
+                color = base_color
             
             # Calculate agent size based on genome (5-15 pixel radius)
             agent_radius = 5 + int(agent.genome.size * 10)
@@ -412,6 +428,10 @@ class Visualization:
             "",
             "⚠️  Extinct populations",
             "will NOT restart!",
+            "",
+            "🔥 Red pulsing = Hazards",
+            "🍎 GA1 eats food",
+            "🦁 GA2 hunts GA1",
             "",
             "Watch for emergent",
             "behaviors and strategy",

@@ -446,7 +446,7 @@ class Analytics:
     
     def create_evolution_graphs(self, save_path: str = "evolution_analysis.png"):
         """
-        Create comprehensive visualization graphs of the evolutionary data.
+        Create focused visualization graphs showing population and trait evolution.
         
         Args:
             save_path: Path to save the graph image
@@ -455,82 +455,70 @@ class Analytics:
             print("No data to visualize. Run simulation first.")
             return
         
-        # Create figure with subplots
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-        fig.suptitle('Evolutionary Analysis Dashboard', fontsize=16, fontweight='bold')
+        # Create figure with 2x2 subplots - focused on key metrics
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        fig.suptitle('Population and Trait Evolution Analysis', fontsize=16, fontweight='bold')
         
-        # Graph 1: Fitness Evolution
+        # Graph 1: Population Over Time
         ax1 = axes[0, 0]
-        generations = range(len(self.performance_comparison['GA1']))
-        ax1.plot(generations, self.performance_comparison['GA1'], 'b-', label='GA1 (Cooperative)', linewidth=2)
-        ax1.plot(generations, self.performance_comparison['GA2'], 'r-', label='GA2 (Aggressive)', linewidth=2)
-        ax1.set_title('Fitness Evolution Over Generations')
+        generations = range(len(self.survival_history['GA1']))
+        ga1_populations = self.survival_history['GA1']
+        ga2_populations = self.survival_history['GA2']
+        
+        ax1.plot(generations, ga1_populations, 'b-', label='GA1 (Cooperative)', linewidth=3, marker='o', markersize=4)
+        ax1.plot(generations, ga2_populations, 'r-', label='GA2 (Aggressive)', linewidth=3, marker='s', markersize=4)
+        ax1.set_title('Population Survival Over Generations', fontsize=14, fontweight='bold')
         ax1.set_xlabel('Generation')
-        ax1.set_ylabel('Average Fitness')
+        ax1.set_ylabel('Number of Survivors')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
+        ax1.set_ylim(0, max(max(ga1_populations) if ga1_populations else [0], 
+                            max(ga2_populations) if ga2_populations else [0]) + 5)
         
-        # Graph 2: Survival Rates
+        # Graph 2: Speed Trait Evolution
         ax2 = axes[0, 1]
-        ga1_survival_rates = [s/config.POPULATION_SIZE_GA1*100 for s in self.survival_history['GA1']]
-        ga2_survival_rates = [s/config.POPULATION_SIZE_GA2*100 for s in self.survival_history['GA2']]
-        ax2.plot(range(len(ga1_survival_rates)), ga1_survival_rates, 'b-', label='GA1', linewidth=2)
-        ax2.plot(range(len(ga2_survival_rates)), ga2_survival_rates, 'r-', label='GA2', linewidth=2)
-        ax2.set_title('Survival Rates Over Generations')
+        if 'speed' in self.genome_analyzer.trait_history['GA1']:
+            ga1_speed = self.genome_analyzer.trait_history['GA1']['speed']
+            ax2.plot(range(len(ga1_speed)), ga1_speed, 'b-', label='GA1 Speed', linewidth=3, marker='o', markersize=4)
+        if 'speed' in self.genome_analyzer.trait_history['GA2']:
+            ga2_speed = self.genome_analyzer.trait_history['GA2']['speed']
+            ax2.plot(range(len(ga2_speed)), ga2_speed, 'r-', label='GA2 Speed', linewidth=3, marker='s', markersize=4)
+        ax2.set_title('Speed Trait Evolution', fontsize=14, fontweight='bold')
         ax2.set_xlabel('Generation')
-        ax2.set_ylabel('Survival Rate (%)')
+        ax2.set_ylabel('Speed (0.0 - 1.0)')
         ax2.legend()
         ax2.grid(True, alpha=0.3)
+        ax2.set_ylim(0, 1)
         
-        # Graph 3: Genetic Diversity
-        ax3 = axes[0, 2]
-        if self.genome_analyzer.diversity_history['GA1']:
-            ax3.plot(range(len(self.genome_analyzer.diversity_history['GA1'])), 
-                    self.genome_analyzer.diversity_history['GA1'], 'b-', label='GA1', linewidth=2)
-        if self.genome_analyzer.diversity_history['GA2']:
-            ax3.plot(range(len(self.genome_analyzer.diversity_history['GA2'])), 
-                    self.genome_analyzer.diversity_history['GA2'], 'r-', label='GA2', linewidth=2)
-        ax3.set_title('Genetic Diversity Over Time')
+        # Graph 3: Sense Trait Evolution
+        ax3 = axes[1, 0]
+        if 'sense' in self.genome_analyzer.trait_history['GA1']:
+            ga1_sense = self.genome_analyzer.trait_history['GA1']['sense']
+            ax3.plot(range(len(ga1_sense)), ga1_sense, 'b-', label='GA1 Sense', linewidth=3, marker='o', markersize=4)
+        if 'sense' in self.genome_analyzer.trait_history['GA2']:
+            ga2_sense = self.genome_analyzer.trait_history['GA2']['sense']
+            ax3.plot(range(len(ga2_sense)), ga2_sense, 'r-', label='GA2 Sense', linewidth=3, marker='s', markersize=4)
+        ax3.set_title('Sense Trait Evolution', fontsize=14, fontweight='bold')
         ax3.set_xlabel('Generation')
-        ax3.set_ylabel('Genetic Diversity')
+        ax3.set_ylabel('Sense (0.0 - 1.0)')
         ax3.legend()
         ax3.grid(True, alpha=0.3)
+        ax3.set_ylim(0, 1)
         
-        # Graph 4: Trait Evolution (Food Priority)
-        ax4 = axes[1, 0]
-        if 'food_priority' in self.genome_analyzer.trait_history['GA1']:
-            ax4.plot(self.genome_analyzer.trait_history['GA1']['food_priority'], 'b-', label='GA1', linewidth=2)
-        if 'food_priority' in self.genome_analyzer.trait_history['GA2']:
-            ax4.plot(self.genome_analyzer.trait_history['GA2']['food_priority'], 'r-', label='GA2', linewidth=2)
-        ax4.set_title('Food Priority Evolution')
+        # Graph 4: Size Trait Evolution
+        ax4 = axes[1, 1]
+        if 'size' in self.genome_analyzer.trait_history['GA1']:
+            ga1_size = self.genome_analyzer.trait_history['GA1']['size']
+            ax4.plot(range(len(ga1_size)), ga1_size, 'b-', label='GA1 Size', linewidth=3, marker='o', markersize=4)
+        if 'size' in self.genome_analyzer.trait_history['GA2']:
+            ga2_size = self.genome_analyzer.trait_history['GA2']['size']
+            ax4.plot(range(len(ga2_size)), ga2_size, 'r-', label='GA2 Size', linewidth=3, marker='s', markersize=4)
+        ax4.set_title('Size Trait Evolution', fontsize=14, fontweight='bold')
         ax4.set_xlabel('Generation')
-        ax4.set_ylabel('Food Priority')
+        ax4.set_ylabel('Size (0.0 - 1.0)')
         ax4.legend()
         ax4.grid(True, alpha=0.3)
-        
-        # Graph 5: Emergent Behaviors (Food Efficiency)
-        ax5 = axes[1, 1]
-        if self.behavior_patterns['GA1']['food_efficiency']:
-            ax5.plot(self.behavior_patterns['GA1']['food_efficiency'], 'b-', label='GA1', linewidth=2)
-        if self.behavior_patterns['GA2']['food_efficiency']:
-            ax5.plot(self.behavior_patterns['GA2']['food_efficiency'], 'r-', label='GA2', linewidth=2)
-        ax5.set_title('Food Efficiency Evolution')
-        ax5.set_xlabel('Generation')
-        ax5.set_ylabel('Food per Distance')
-        ax5.legend()
-        ax5.grid(True, alpha=0.3)
-        
-        # Graph 6: Population Health (Average Age)
-        ax6 = axes[1, 2]
-        ga1_ages = [gen['ga1']['avg_age'] for gen in self.generation_data]
-        ga2_ages = [gen['ga2']['avg_age'] for gen in self.generation_data]
-        ax6.plot(range(len(ga1_ages)), ga1_ages, 'b-', label='GA1', linewidth=2)
-        ax6.plot(range(len(ga2_ages)), ga2_ages, 'r-', label='GA2', linewidth=2)
-        ax6.set_title('Average Lifespan Evolution')
-        ax6.set_xlabel('Generation')
-        ax6.set_ylabel('Average Age (frames)')
-        ax6.legend()
-        ax6.grid(True, alpha=0.3)
+        ax4.set_ylim(0, 1)
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')

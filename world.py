@@ -104,17 +104,19 @@ class World:
                 continue  # Skip dead agents
                 
             # FOOD CONSUMPTION: Check if agent is close enough to eat food
-            for food in self.food[:]:  # Use slice copy to allow safe removal during iteration
-                # Simple collision detection: if agent and food overlap
-                if abs(agent.x - food.x) < 20 and abs(agent.y - food.y) < 20:
-                    # Agent successfully eats food
-                    agent.energy += config.EATING_REWARD
-                    agent.food_collected += 1
-                    self.food.remove(food)  # Remove eaten food from world
-                    break  # Agent can only eat one food per frame
+            # GA2 agents are carnivorous - they don't eat regular food, only hunt GA1 agents
+            from config import AgentType
+            if agent.agent_type == AgentType.COOPERATIVE:  # Only GA1 agents eat food
+                for food in self.food[:]:  # Use slice copy to allow safe removal during iteration
+                    # Simple collision detection: if agent and food overlap
+                    if abs(agent.x - food.x) < 20 and abs(agent.y - food.y) < 20:
+                        # Agent successfully eats food
+                        agent.energy += config.EATING_REWARD
+                        agent.food_collected += 1
+                        self.food.remove(food)  # Remove eaten food from world
+                        break  # Agent can only eat one food per frame
             
             # AGENT-TO-AGENT COMBAT: Aggressive agents attack cooperative ones
-            from config import AgentType
             if (agent.agent_type == AgentType.AGGRESSIVE and agent.energy > 50):
                 
                 for other_agent in agents:
@@ -147,10 +149,19 @@ class World:
             
             # HAZARD DAMAGE: Check if agent is in dangerous area
             for hazard in self.hazards:
-                if abs(agent.x - hazard.x) < 20 and abs(agent.y - hazard.y) < 20:
-                    # Agent takes damage from hazard
-                    agent.energy -= 10
-                    # Note: Could add more sophisticated damage systems here
+                if abs(agent.x - hazard.x) < 30 and abs(agent.y - hazard.y) < 30:
+                    # Agent takes continuous damage from hazard
+                    hazard_damage = 15  # Increased damage
+                    agent.energy -= hazard_damage
+                    
+                    # Visual feedback - mark agent as in hazard
+                    if not hasattr(agent, 'in_hazard'):
+                        agent.in_hazard = 0
+                    agent.in_hazard = 5  # Mark for 5 frames
+                    
+                    # Kill agent if energy drops too low from hazard
+                    if agent.energy <= 0:
+                        agent.alive = False
     
     def get_world_state_for_agent(self, agent, all_agents: List) -> Dict[str, Any]:
         """

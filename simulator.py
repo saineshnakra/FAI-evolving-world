@@ -16,6 +16,7 @@ Usage: python simulator.py
 import pygame
 import sys
 from typing import List, Tuple
+import random
 
 # Import all simulation components
 from config import config, AgentType
@@ -55,22 +56,17 @@ class Simulation:
         self.running = True         # Main loop control
         self.paused = False         # Pause/resume functionality
         
-        # Create separate spawn areas for each population
-        # GA1 (Cooperative) spawns on the left side
-        ga1_spawn_positions = [
-            (30, 50), (30, 150), (30, 250), (30, 350), (30, 450), (30, 550),
-            (80, 50), (80, 150), (80, 250), (80, 350), (80, 450), (80, 550),
-            (130, 50), (130, 150), (130, 250), (130, 350), (130, 450), (130, 550)
-        ]
+        # Create spawn positions randomly across the world
+        # Generate enough positions for the larger population (GA1)
+        spawn_positions = []
+        for _ in range(config.POPULATION_SIZE_GA1 + config.POPULATION_SIZE_GA2):
+            x = random.randint(50, config.WORLD_WIDTH - 70)   # Leave border space
+            y = random.randint(50, config.WORLD_HEIGHT - 70)  # Leave border space
+            spawn_positions.append((x, y))
         
-        # GA2 (Aggressive) spawns on the right side  
-        ga2_spawn_positions = [
-            (750, 50), (750, 150), (750, 250), (750, 350), (750, 450), (750, 550),
-            (700, 100), (700, 200), (700, 300), (700, 400), (700, 500)
-        ]
-        
-        self.ga1.initialize_population(ga1_spawn_positions)
-        self.ga2.initialize_population(ga2_spawn_positions)
+        # Both populations use the same random spawn positions
+        self.ga1.initialize_population(spawn_positions)
+        self.ga2.initialize_population(spawn_positions)
         
         print("Simulation initialized successfully!")
         print(f"GA1 (Cooperative): {config.POPULATION_SIZE_GA1} agents")
@@ -244,22 +240,17 @@ class Simulation:
         print(report)
         
         # Execute genetic algorithm evolution for both populations
-        ga1_spawn_positions = [
-            (30, 50), (30, 150), (30, 250), (30, 350), (30, 450), (30, 550),
-            (80, 50), (80, 150), (80, 250), (80, 350), (80, 450), (80, 550),
-            (130, 50), (130, 150), (130, 250), (130, 350), (130, 450), (130, 550)
-        ]
-        
-        ga2_spawn_positions = [
-            (750, 50), (750, 150), (750, 250), (750, 350), (750, 450), (750, 550),
-            (700, 100), (700, 200), (700, 300), (700, 400), (700, 500)
-        ]
+        spawn_positions = []
+        for _ in range(config.POPULATION_SIZE_GA1 + config.POPULATION_SIZE_GA2):
+            x = random.randint(50, config.WORLD_WIDTH - 70)   # Leave border space
+            y = random.randint(50, config.WORLD_HEIGHT - 70)  # Leave border space
+            spawn_positions.append((x, y))
         
         print("Evolving GA1 (Cooperative)...")
-        self.ga1.evolve_generation(ga1_spawn_positions)
+        self.ga1.evolve_generation(spawn_positions)
         
         print("Evolving GA2 (Aggressive)...")
-        self.ga2.evolve_generation(ga2_spawn_positions)
+        self.ga2.evolve_generation(spawn_positions)
         
         # Reset environment for fresh start
         print("Resetting world environment...")
@@ -292,19 +283,14 @@ class Simulation:
         self.analytics = Analytics()
         
         # Create new populations
-        ga1_spawn_positions = [
-            (30, 50), (30, 150), (30, 250), (30, 350), (30, 450), (30, 550),
-            (80, 50), (80, 150), (80, 250), (80, 350), (80, 450), (80, 550),
-            (130, 50), (130, 150), (130, 250), (130, 350), (130, 450), (130, 550)
-        ]
+        spawn_positions = []
+        for _ in range(config.POPULATION_SIZE_GA1 + config.POPULATION_SIZE_GA2):
+            x = random.randint(50, config.WORLD_WIDTH - 70)   # Leave border space
+            y = random.randint(50, config.WORLD_HEIGHT - 70)  # Leave border space
+            spawn_positions.append((x, y))
         
-        ga2_spawn_positions = [
-            (750, 50), (750, 150), (750, 250), (750, 350), (750, 450), (750, 550),
-            (700, 100), (700, 200), (700, 300), (700, 400), (700, 500)
-        ]
-        
-        self.ga1.initialize_population(ga1_spawn_positions)
-        self.ga2.initialize_population(ga2_spawn_positions)
+        self.ga1.initialize_population(spawn_positions)
+        self.ga2.initialize_population(spawn_positions)
         
         print("Simulation reset complete!")
         print("New random populations generated.")
