@@ -46,8 +46,8 @@ class Config:
     SURVIVAL_REWARD: int = 1        # Fitness bonus per frame survived
     
     # Genetic algorithm parameters
-    MUTATION_RATE: float = 0.1      # Probability of mutation during reproduction (0.0-1.0)
-    CROSSOVER_RATE: float = 0.7     # Probability of crossover vs. cloning (0.0-1.0)
+    MUTATION_RATE: float = 0.15      # Probability of mutation during reproduction (0.0-1.0)
+    CROSSOVER_RATE: float = 0.8     # Probability of crossover vs. cloning (0.0-1.0)
     TOURNAMENT_SIZE: int = 3        # Number of agents competing in tournament selection
     
     # Visualization and performance
