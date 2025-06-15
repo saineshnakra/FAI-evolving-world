@@ -51,7 +51,7 @@ class Config:
     TOURNAMENT_SIZE: int = 3        # Number of agents competing in tournament selection
     
     # Visualization and performance
-    FPS: int = 30                   # Frames per second for real-time display
+    FPS: int = 100                   # Frames per second for real-time display
     COLORS = {                      # Color scheme for different elements
         'BACKGROUND': (20, 20, 30),     # Dark background
         'FOOD': (0, 255, 0),            # Green food items

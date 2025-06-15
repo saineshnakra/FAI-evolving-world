@@ -224,24 +224,27 @@ class World:
         speed_multiplier = agent.get_movement_speed()
         
         # Calculate actual movement distance based on genetics
-        # Base movement is 1-3 pixels, scaled by speed trait
-        base_movement = 2
-        actual_movement = max(1, int(base_movement * speed_multiplier))
+        # Base movement is 2-6 pixels, scaled by speed trait
+        base_movement = 4  # Increased from 2 to 4
+        actual_movement = max(2, int(base_movement * speed_multiplier))  # Min 2 pixels
         
         # Apply movement with boundary checking
         new_x = agent.x + (dx * actual_movement)
         new_y = agent.y + (dy * actual_movement)
         
-        # Boundary enforcement with bounce-back
-        if new_x < 0:
-            new_x = 0
-        elif new_x >= self.width:
-            new_x = self.width - 1
+        # Boundary enforcement with proper margins for agent size
+        agent_radius = 5 + int(agent.genome.size * 10)  # Agent visual size
+        margin = agent_radius + 5  # Extra safety margin
+        
+        if new_x < margin:
+            new_x = margin
+        elif new_x >= self.width - margin:
+            new_x = self.width - margin - 1
             
-        if new_y < 0:
-            new_y = 0
-        elif new_y >= self.height:
-            new_y = self.height - 1
+        if new_y < margin:
+            new_y = margin
+        elif new_y >= self.height - margin:
+            new_y = self.height - margin - 1
         
         # Update agent position
         agent.x = new_x
