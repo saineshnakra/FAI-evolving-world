@@ -695,7 +695,7 @@ class Analytics:
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Evolution graphs saved to: {save_path}")
-        plt.show()
+        # plt.show()
     
     def get_summary_report(self) -> str:
         """

@@ -332,6 +332,17 @@ class Simulation:
         # Record comprehensive analytics before evolution
         self.analytics.record_generation(current_gen, self.ga1, self.ga2, self.world)
         
+        # NEW: Auto-generate evolution graphs every 50 generations
+        if current_gen > 0 and current_gen % 50 == 0:
+            print(f"📊 Auto-generating evolution graphs at Generation {current_gen}...")
+            try:
+                graph_filename = f"auto_evolution_graphs_gen_{current_gen}.png"
+                self.analytics.create_evolution_graphs(graph_filename)
+                print(f"✅ Evolution graphs saved: {graph_filename}")
+            except Exception as e:
+                print(f"⚠️ Could not generate graphs: {e}")
+                print("💡 Install matplotlib for graph generation: pip install matplotlib")
+
         # Display current generation summary
         summary = self.analytics.get_summary_report()
         print(summary)

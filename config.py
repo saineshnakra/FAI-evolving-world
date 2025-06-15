@@ -32,7 +32,7 @@ class Config:
     POPULATION_SIZE_GA1: int = 100      # Cooperative agents (larger population)
     POPULATION_SIZE_GA2: int = 20       # Aggressive agents (smaller population)
     POPULATION_SIZE: int = 50           # Keep for backwards compatibility
-    MAX_GENERATIONS: int = 100          # Maximum generations to simulate
+    MAX_GENERATIONS: int = 501          # Maximum generations to simulate
     
     # Environment dynamics - IMPROVED FOR BETTER SURVIVAL
     FOOD_COUNT: int = 120           # Even more initial food availability
@@ -51,7 +51,7 @@ class Config:
     TOURNAMENT_SIZE: int = 3        # Number of agents competing in tournament selection
     
     # Visualization and performance
-    FPS: int = 100                   # Frames per second for real-time display
+    FPS: int = 1000                   # Frames per second for real-time display
     COLORS = {                      # Color scheme for different elements
         'BACKGROUND': (20, 20, 30),     # Dark background
         'FOOD': (0, 255, 0),            # Green food items
