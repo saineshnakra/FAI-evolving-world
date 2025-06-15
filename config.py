@@ -30,7 +30,7 @@ class Config:
     
     # Population genetics settings
     POPULATION_SIZE_GA1: int = 100      # Cooperative agents (larger population)
-    POPULATION_SIZE_GA2: int = 10       # Aggressive agents (smaller population)
+    POPULATION_SIZE_GA2: int = 20       # Aggressive agents (smaller population)
     POPULATION_SIZE: int = 50           # Keep for backwards compatibility
     MAX_GENERATIONS: int = 100          # Maximum generations to simulate
     

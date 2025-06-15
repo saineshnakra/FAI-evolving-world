@@ -79,8 +79,46 @@ class Agent:
         self.fitness = 0                    # Overall fitness score
         self.food_collected = 0             # Number of food items eaten
         self.attacks_made = 0               # Number of attacks on other agents
+        self.successful_attacks = 0         # Number of successful attacks (energy gained)
         self.distance_traveled = 0          # Total distance moved (for efficiency metrics)
         
+        # FIX 1: Track previous position for distance calculation
+        self.prev_x = x
+        self.prev_y = y
+        
+    def get_vision_range(self) -> float:
+        """
+        Calculate actual vision range based on sense trait.
+        
+        Returns:
+            float: Vision range in pixels (50-150 based on sense trait)
+        """
+        return 50 + (self.genome.sense * 100)
+    
+    def get_movement_speed(self) -> float:
+        """
+        Calculate actual movement speed based on speed trait and size penalty.
+        
+        Returns:
+            float: Movement speed multiplier
+        """
+        # FIX 2: Larger agents move slower (size penalty)
+        size_penalty = 1.0 - (self.genome.size * 0.3)  # Up to 30% speed reduction
+        return self.genome.speed * size_penalty
+    
+    def get_energy_cost(self) -> float:
+        """
+        Calculate energy cost per move based on size and speed.
+        
+        Returns:
+            float: Energy cost for this agent's movement
+        """
+        # FIX 3: Energy cost scales with size and speed
+        base_cost = config.MOVEMENT_COST
+        size_cost = 1.0 + (self.genome.size * 0.5)  # Larger agents cost more energy
+        speed_cost = 1.0 + (self.genome.speed * 0.3)  # Faster movement costs more
+        return base_cost * size_cost * speed_cost
+
     def update(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
         """
         Update agent for one simulation step and return desired movement.
@@ -102,54 +140,160 @@ class Agent:
             self.alive = False
             return 0, 0  # No movement if dead
             
-        # Age the agent and consume energy for basic metabolism
+        # Age the agent and consume energy based on genetics
         self.age += 1
-        self.energy -= config.MOVEMENT_COST
+        energy_cost = self.get_energy_cost()
+        self.energy -= energy_cost
         
         # Update fitness based on current performance
         self._calculate_fitness()
         
         # Make behavioral decision based on genetics and environment
-        return self._decide_action(world_state)
+        dx, dy = self._decide_action(world_state)
+        
+        # FIX 4: Track distance traveled for efficiency metrics
+        if dx != 0 or dy != 0:
+            self.distance_traveled += math.sqrt(dx*dx + dy*dy)
+            self.prev_x, self.prev_y = self.x, self.y
+        
+        return dx, dy
+    
+    def attack_agent(self, target_agent: 'Agent') -> bool:
+        """
+        FIX 5: Implement actual attack mechanics for GA2 agents.
+        
+        Args:
+            target_agent: The agent being attacked
+            
+        Returns:
+            bool: True if attack was successful
+        """
+        if self.agent_type != AgentType.AGGRESSIVE:
+            return False
+            
+        if not target_agent.alive:
+            return False
+            
+        # Attack success based on size difference and random factor
+        attack_power = self.genome.size * 50 + random.uniform(0, 20)  # 0-70 damage
+        defense_power = target_agent.genome.size * 30 + random.uniform(0, 30)  # 0-60 defense
+        
+        self.attacks_made += 1
+        
+        if attack_power > defense_power:
+            # Successful attack
+            damage = attack_power - defense_power
+            target_agent.energy -= damage
+            
+            # FIX 6: GA2 agents gain energy from successful attacks
+            energy_gained = min(damage * 0.8, target_agent.energy * 0.3)  # Gain 80% of damage dealt or 30% of target's energy
+            self.energy += energy_gained
+            self.successful_attacks += 1
+            
+            if target_agent.energy <= 0:
+                target_agent.alive = False
+                # Bonus energy for killing
+                self.energy += 20
+            
+            return True
+        
+        return False
+    
+    def eat_food(self, food_energy: float):
+        """
+        Food consumption with different efficiency for different agent types.
+        
+        Args:
+            food_energy: Amount of energy to gain from food
+        """
+        if self.agent_type == AgentType.COOPERATIVE:
+            # GA1: Full energy gain from food (natural herbivores)
+            self.energy += food_energy
+            self.food_collected += 1
+        else:
+            # GA2: Reduced energy gain from food (carnivores eating plants as backup)
+            # They can digest it, but not efficiently
+            backup_energy = food_energy * 0.5  # Only 50% efficiency
+            self.energy += backup_energy
+            self.food_collected += 1  # Still counts as food consumed
     
     def _calculate_fitness(self):
         """
-        Calculate fitness score based on agent type and performance metrics.
+        Energy-informed fitness function that balances survival with strategic effectiveness.
         
-        GA1 (Cooperative): Rewards food collection, survival time, and energy efficiency
-        GA2 (Aggressive): Rewards resource acquisition, successful attacks, and dominance
+        Fitness = Survival Success + Strategic Performance + Energy Management + Genetic Optimization
         
-        This is where the two different evolutionary strategies are implemented.
+        This approach uses energy as a survival constraint while rewarding strategies
+        that lead to sustainable, effective long-term survival.
         """
-        # Base fitness components shared by both strategies
-        base_fitness = (
-            self.food_collected * 10 +      # Reward successful foraging
-            self.age * 0.1                  # Reward longevity
-        )
+        # COMPONENT 1: Survival Success (primary objective)
+        # Reward staying alive longer, but with diminishing returns to avoid pure camping
+        survival_fitness = math.log(self.age + 1) * 5  # Logarithmic scaling
+        
+        # COMPONENT 2: Energy Management (sustainability measure)
+        # Reward agents that maintain energy effectively over time
+        if self.age > 0:
+            avg_energy = self.energy / self.age if self.age > 0 else self.energy
+            energy_sustainability = min(avg_energy * 0.2, 20)  # Cap to prevent energy hoarding
+        else:
+            energy_sustainability = 0
+        
+        # COMPONENT 3: Strategic Performance (population-specific objectives)
+        strategic_fitness = 0
         
         if self.agent_type == AgentType.COOPERATIVE:
-            # GA1 Strategy: Cooperative and efficient
-            # Rewards energy conservation, peaceful coexistence, and sustainability
-            energy_bonus = self.energy * 0.1        # Reward energy conservation
-            self.fitness = base_fitness + energy_bonus
+            # GA1 Strategy: Efficient resource acquisition and survival
+            
+            # Resource efficiency: food per unit time and energy spent
+            if self.age > 0:
+                food_efficiency = (self.food_collected / (self.age + 1)) * 15
+                strategic_fitness += food_efficiency
+            
+            # Energy efficiency: minimize energy waste while staying active
+            if self.distance_traveled > 0:
+                movement_efficiency = self.food_collected / (self.distance_traveled + 1)
+                strategic_fitness += movement_efficiency * 10
+            
+            # Genetic optimization bonuses
+            sense_effectiveness = self.genome.sense * self.food_collected * 1.5
+            size_efficiency = (1.0 - self.genome.size) * energy_sustainability * 0.5
+            strategic_fitness += sense_effectiveness + size_efficiency
             
         else:
-            # GA2 Strategy: Aggressive and carnivorous  
-            # Rewards successful hunting and dominance, not food collection
-            hunt_bonus = self.attacks_made * 15      # High reward for successful attacks
-            survival_bonus = self.age * 0.2          # Bonus for staying alive longer
-            # Remove food collection bonus since GA2 doesn't eat regular food
-            self.fitness = (self.age * 0.1) + hunt_bonus + survival_bonus
+            # GA2 Strategy: Effective hunting and dominance
+            
+            # Hunting effectiveness: successful attacks per unit time
+            if self.age > 0:
+                hunt_effectiveness = (self.successful_attacks / (self.age + 1)) * 25
+                strategic_fitness += hunt_effectiveness
+            
+            # Combat efficiency: successful attack rate
+            if self.attacks_made > 0:
+                attack_success_rate = self.successful_attacks / self.attacks_made
+                strategic_fitness += attack_success_rate * 15
+            
+            # Genetic optimization bonuses
+            combat_size_bonus = self.genome.size * self.successful_attacks * 2
+            hunting_speed_bonus = self.genome.speed * self.attacks_made * 1.5
+            hunting_sense_bonus = self.genome.sense * self.successful_attacks * 2
+            strategic_fitness += combat_size_bonus + hunting_speed_bonus + hunting_sense_bonus
+        
+        # COMPONENT 4: Energy-Survival Integration
+        # Bonus for agents that survive long while maintaining active energy levels
+        if self.age > 50 and self.energy > 30:  # Long-term survivors with good energy
+            longevity_bonus = math.sqrt(self.age) * (self.energy / 100) * 5
+        else:
+            longevity_bonus = 0
+        
+        # FINAL FITNESS CALCULATION
+        self.fitness = survival_fitness + energy_sustainability + strategic_fitness + longevity_bonus
+        
+        # Ensure fitness is always positive
+        self.fitness = max(self.fitness, 1.0)
     
     def _decide_action(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
         """
-        Make behavioral decision based on simplified genome and world state.
-        
-        With the simplified genome, decision-making is streamlined:
-        - Agents always seek food when visible (survival priority)
-        - Movement is influenced by speed trait
-        - Aggressive agents (GA2) attack when close to cooperative agents
-        - Cooperative agents (GA1) flee from aggressive agents when low energy
+        FIX 11: Make behavioral decision that uses genetic traits effectively.
         
         Args:
             world_state: Contains nearby food, agents, and hazards
@@ -163,75 +307,79 @@ class Agent:
         
         dx, dy = 0, 0  # Default: no movement
         
+        # FIX 12: Use vision range based on genetics
+        vision_range = self.get_vision_range()
+        
+        # Filter objects by actual vision range
+        visible_food = [(fx, fy) for fx, fy in nearby_food 
+                       if math.sqrt((fx - self.x)**2 + (fy - self.y)**2) <= vision_range]
+        
+        visible_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
+                         if math.sqrt((ax - self.x)**2 + (ay - self.y)**2) <= vision_range]
+        
         # BEHAVIOR 1: Agent-to-agent interactions
-        if self.agent_type == AgentType.AGGRESSIVE and nearby_agents:
+        if self.agent_type == AgentType.AGGRESSIVE and visible_agents:
             # Aggressive agents pursue cooperative agents
-            coop_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
+            coop_agents = [(ax, ay, agent_type) for ax, ay, agent_type in visible_agents 
                           if agent_type == AgentType.COOPERATIVE]
             if coop_agents:
                 # Move towards nearest cooperative agent
                 target_x, target_y, _ = min(coop_agents, 
                     key=lambda agent_info: math.sqrt((agent_info[0] - self.x)**2 + (agent_info[1] - self.y)**2))
                 
-                if target_x > self.x:
-                    dx = 1
-                elif target_x < self.x:
-                    dx = -1
-                    
-                if target_y > self.y:
-                    dy = 1
-                elif target_y < self.y:
-                    dy = -1
-                
+                dx, dy = self._calculate_movement_direction(target_x, target_y)
                 return dx, dy
         
-        elif self.agent_type == AgentType.COOPERATIVE and nearby_agents and self.energy < 50:
-            # Cooperative agents flee from aggressive agents when low energy
-            aggr_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
+        elif self.agent_type == AgentType.COOPERATIVE and visible_agents:
+            # FIX 13: GA1 agents flee when they detect threats within their vision
+            aggr_agents = [(ax, ay, agent_type) for ax, ay, agent_type in visible_agents 
                           if agent_type == AgentType.AGGRESSIVE]
-            if aggr_agents:
+            if aggr_agents and (self.energy < 50 or self.genome.size < 0.5):  # Flee if low energy or small
                 # Move away from nearest aggressive agent
                 threat_x, threat_y, _ = min(aggr_agents, 
                     key=lambda agent_info: math.sqrt((agent_info[0] - self.x)**2 + (agent_info[1] - self.y)**2))
                 
-                # Calculate direction away from threat
-                if threat_x > self.x:
-                    dx = -1
-                elif threat_x < self.x:
-                    dx = 1
-                    
-                if threat_y > self.y:
-                    dy = -1
-                elif threat_y < self.y:
-                    dy = 1
-                
+                dx, dy = self._calculate_movement_direction(threat_x, threat_y, flee=True)
                 return dx, dy
         
-        # BEHAVIOR 2: Food-seeking (primary survival behavior)
-        # Only GA1 agents seek food - GA2 agents are carnivorous hunters
-        if nearby_food and self.agent_type == AgentType.COOPERATIVE:
-            closest_food = min(nearby_food, key=lambda f: 
-                             math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
-            
-            # Calculate direction to food
-            if closest_food[0] > self.x:
-                dx = 1
-            elif closest_food[0] < self.x:
-                dx = -1
+        # BEHAVIOR 2: Food-seeking (GA1 only, but GA2 can eat food as emergency backup)
+        if visible_food:
+            if self.agent_type == AgentType.COOPERATIVE or self.energy < 30:  # GA2 eats food only when desperate
+                closest_food = min(visible_food, key=lambda f: 
+                                 math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
                 
-            if closest_food[1] > self.y:
-                dy = 1
-            elif closest_food[1] < self.y:
-                dy = -1
+                dx, dy = self._calculate_movement_direction(closest_food[0], closest_food[1])
+                return dx, dy
         
-        # BEHAVIOR 3: Random exploration when no targets
-        elif random.random() < 0.4:  # 40% chance of random movement
+        # BEHAVIOR 3: Random exploration based on speed trait
+        exploration_chance = 0.2 + (self.genome.speed * 0.3)  # Faster agents explore more
+        if random.random() < exploration_chance:
             dx = random.choice([-1, 0, 1])
             dy = random.choice([-1, 0, 1])
         
         return dx, dy
     
-
+    def _calculate_movement_direction(self, target_x: int, target_y: int, flee: bool = False) -> Tuple[int, int]:
+        """
+        FIX 14: Helper method to calculate movement direction towards or away from target.
+        
+        Args:
+            target_x, target_y: Target coordinates
+            flee: If True, move away from target instead of towards
+            
+        Returns:
+            Tuple of movement direction (-1, 0, or 1 for each axis)
+        """
+        if flee:
+            # Calculate direction away from target
+            dx = -1 if target_x > self.x else (1 if target_x < self.x else 0)
+            dy = -1 if target_y > self.y else (1 if target_y < self.y else 0)
+        else:
+            # Calculate direction towards target
+            dx = 1 if target_x > self.x else (-1 if target_x < self.x else 0)
+            dy = 1 if target_y > self.y else (-1 if target_y < self.y else 0)
+        
+        return dx, dy
 
 
 class GeneticAlgorithm:
@@ -509,4 +657,4 @@ class GeneticAlgorithm:
             sense=max(0, min(1, genome.sense + random.gauss(0, 0.1))),
             size=max(0, min(1, genome.size + random.gauss(0, 0.1)))
         )
-        return mutated_genome 
+        return mutated_genome
