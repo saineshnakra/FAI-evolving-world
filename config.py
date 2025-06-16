@@ -29,15 +29,15 @@ class Config:
     GRID_SIZE: int = 20             # Size of world grid cells (for collision detection)
     
     # Population genetics settings
-    POPULATION_SIZE_GA1: int = 30       # Cooperative agents (larger population)
-    POPULATION_SIZE_GA2: int = 10       # Aggressive agents (smaller population)
+    POPULATION_SIZE_GA1: int = 100      # Cooperative agents (larger population)
+    POPULATION_SIZE_GA2: int = 20       # Aggressive agents (smaller population)
     POPULATION_SIZE: int = 50           # Keep for backwards compatibility
-    MAX_GENERATIONS: int = 100          # Maximum generations to simulate
+    MAX_GENERATIONS: int = 501          # Maximum generations to simulate
     
     # Environment dynamics - IMPROVED FOR BETTER SURVIVAL
-    FOOD_COUNT: int = 80            # Increased initial food availability
-    HAZARD_COUNT: int = 5           # Reduced hazards for better survival
-    FOOD_SPAWN_RATE: float = 0.25   # Increased food spawn rate (more frequent spawning)
+    FOOD_COUNT: int = 120           # Even more initial food availability
+    HAZARD_COUNT: int = 8           # More hazards to make them noticeable
+    FOOD_SPAWN_RATE: float = 0.35   # Very high food spawn rate
     
     # Agent energy and survival mechanics - IMPROVED FOR SURVIVAL
     AGENT_ENERGY: int = 150         # Increased starting energy
@@ -46,12 +46,12 @@ class Config:
     SURVIVAL_REWARD: int = 1        # Fitness bonus per frame survived
     
     # Genetic algorithm parameters
-    MUTATION_RATE: float = 0.1      # Probability of mutation during reproduction (0.0-1.0)
-    CROSSOVER_RATE: float = 0.7     # Probability of crossover vs. cloning (0.0-1.0)
+    MUTATION_RATE: float = 0.15      # Probability of mutation during reproduction (0.0-1.0)
+    CROSSOVER_RATE: float = 0.8     # Probability of crossover vs. cloning (0.0-1.0)
     TOURNAMENT_SIZE: int = 3        # Number of agents competing in tournament selection
     
     # Visualization and performance
-    FPS: int = 30                   # Frames per second for real-time display
+    FPS: int = 1000                   # Frames per second for real-time display
     COLORS = {                      # Color scheme for different elements
         'BACKGROUND': (20, 20, 30),     # Dark background
         'FOOD': (0, 255, 0),            # Green food items

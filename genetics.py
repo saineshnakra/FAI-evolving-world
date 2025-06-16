@@ -1,8 +1,13 @@
 """
-Genetics module for the Artificial World Simulation.
+Genetics module for the Artificial World Simulation - FIXED VERSION
 
-Contains the genetic representation, agent behavior, and genetic algorithm
-implementation for evolving populations.
+Key fixes applied:
+1. Improved mutation system with adaptive rates and minimum diversity protection
+2. Better trait boundary enforcement
+3. Enhanced crossover with intermediate recombination
+4. Population size consistency fixes
+5. Improved fitness function balance
+6. Better selection pressure management
 """
 
 import numpy as np
@@ -18,429 +23,530 @@ from config import config, AgentType
 class Genome:
     """
     Simplified genetic representation with only three key traits.
-    
-    This streamlined approach focuses on the most impactful characteristics:
-    - speed: How fast the agent moves (affects movement distance per frame)
-    - sense: How far the agent can perceive its environment (vision range)
-    - size: How big the agent is (affects collision detection, slows movement)
-    
-    All traits are normalized between 0.0 and 1.0 for consistency.
     """
     speed: float        # Movement speed multiplier (0.0-1.0)
-    sense: float        # Vision range multiplier (0.0-1.0) 
-    size: float         # Size multiplier (0.0-1.0, larger = slower)
+    sense: float        # Vision/sight range multiplier (0.0-1.0) -> 50-150 pixels sight range
+    size: float         # Size multiplier (0.0-1.0, larger = slower but more damage)
     
     @classmethod
     def random(cls) -> 'Genome':
-        """
-        Generate a random genome with all three traits randomized.
-        
-        Returns:
-            Genome: A new genome with random trait values
-        """
+        """Generate a random genome with all three traits randomized."""
         return cls(
-            speed=random.random(),
-            sense=random.random(), 
-            size=random.random()
+            speed=random.uniform(0.1, 0.9),  # FIX: Avoid extreme values (0.0, 1.0)
+            sense=random.uniform(0.1, 0.9),
+            size=random.uniform(0.1, 0.9)
         )
 
 
 class Agent:
-    """
-    Individual agent that exists in the world and evolves over time.
-    
-    Each agent has a genome that determines its behavior, and tracks its
-    performance metrics for fitness evaluation. Agents can move, eat food,
-    interact with hazards, and potentially attack other agents.
-    """
+    """Individual agent that exists in the world and evolves over time."""
     
     def __init__(self, x: int, y: int, agent_type: AgentType, genome: Genome = None):
-        """
-        Initialize a new agent.
-        
-        Args:
-            x, y: Starting position in the world
-            agent_type: Whether this is a cooperative (GA1) or aggressive (GA2) agent
-            genome: Genetic traits (if None, generates random genome)
-        """
         # Position and identity
-        self.x = x                          # Current x coordinate
-        self.y = y                          # Current y coordinate
-        self.agent_type = agent_type        # GA1 (cooperative) or GA2 (aggressive)
-        self.genome = genome or Genome.random()  # Genetic traits
+        self.x = x
+        self.y = y
+        self.agent_type = agent_type
+        self.genome = genome or Genome.random()
+        
+        # FIX: Enforce trait boundaries at creation
+        self._enforce_trait_boundaries()
         
         # Survival and energy management
-        self.energy = config.AGENT_ENERGY   # Current energy level
-        self.age = 0                        # How many frames this agent has survived
-        self.alive = True                   # Whether agent is still active
+        self.energy = config.AGENT_ENERGY
+        self.age = 0
+        self.alive = True
         
         # Performance tracking for fitness calculation
-        self.fitness = 0                    # Overall fitness score
-        self.food_collected = 0             # Number of food items eaten
-        self.attacks_made = 0               # Number of attacks on other agents
-        self.distance_traveled = 0          # Total distance moved (for efficiency metrics)
+        self.fitness = 0
+        self.food_collected = 0
+        self.attacks_made = 0
+        self.successful_attacks = 0
+        self.distance_traveled = 0
         
+        # Track previous position for distance calculation
+        self.prev_x = x
+        self.prev_y = y
+    
+    def _enforce_trait_boundaries(self):
+        """FIX: Ensure all traits stay within reasonable bounds."""
+        self.genome.speed = max(0.01, min(0.99, self.genome.speed))    # Prevent 0.0 speed
+        self.genome.sense = max(0.01, min(0.99, self.genome.sense))    # Prevent 0.0 sense
+        self.genome.size = max(0.01, min(0.99, self.genome.size))      # Prevent 0.0 size
+        
+    def get_vision_range(self) -> float:
+        """Calculate actual vision range based on sense trait."""
+        return 50 + (self.genome.sense * 100)
+    
+    def get_movement_speed(self) -> float:
+        """Calculate actual movement speed based on speed trait and size penalty."""
+        size_penalty = 1.0 - (self.genome.size * 0.2)  # FIX: Reduced size penalty (was 0.3)
+        return self.genome.speed * size_penalty
+    
+    def get_energy_cost(self) -> float:
+        """Calculate energy cost per move based on size and speed."""
+        base_cost = config.MOVEMENT_COST
+        size_cost = 1.0 + (self.genome.size * 0.3)    # FIX: Reduced size cost (was 0.5)
+        speed_cost = 1.0 + (self.genome.speed * 0.2)  # FIX: Reduced speed cost (was 0.3)
+        return base_cost * size_cost * speed_cost
+
     def update(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
-        """
-        Update agent for one simulation step and return desired movement.
-        
-        This is the main agent behavior function called each frame. It:
-        1. Checks if agent is still alive
-        2. Ages the agent and consumes energy
-        3. Calculates current fitness
-        4. Decides on action based on genome and world state
-        
-        Args:
-            world_state: Dictionary containing nearby objects and agents
-            
-        Returns:
-            Tuple of (dx, dy) representing desired movement direction
-        """
-        # Check if agent died from energy depletion
+        """Update agent for one simulation step and return desired movement."""
         if not self.alive or self.energy <= 0:
             self.alive = False
-            return 0, 0  # No movement if dead
+            return 0, 0
             
-        # Age the agent and consume energy for basic metabolism
+        # Age the agent and consume energy based on genetics
         self.age += 1
-        self.energy -= config.MOVEMENT_COST
+        energy_cost = self.get_energy_cost()
+        self.energy -= energy_cost
         
         # Update fitness based on current performance
         self._calculate_fitness()
         
         # Make behavioral decision based on genetics and environment
-        return self._decide_action(world_state)
-    
-    def _calculate_fitness(self):
-        """
-        Calculate fitness score based on agent type and performance metrics.
+        dx, dy = self._decide_action(world_state)
         
-        GA1 (Cooperative): Rewards food collection, survival time, and energy efficiency
-        GA2 (Aggressive): Rewards resource acquisition, successful attacks, and dominance
-        
-        This is where the two different evolutionary strategies are implemented.
-        """
-        # Base fitness components shared by both strategies
-        base_fitness = (
-            self.food_collected * 10 +      # Reward successful foraging
-            self.age * 0.1                  # Reward longevity
-        )
-        
-        if self.agent_type == AgentType.COOPERATIVE:
-            # GA1 Strategy: Cooperative and efficient
-            # Rewards energy conservation, peaceful coexistence, and sustainability
-            energy_bonus = self.energy * 0.1        # Reward energy conservation
-            self.fitness = base_fitness + energy_bonus
-            
-        else:
-            # GA2 Strategy: Aggressive and competitive  
-            # Rewards resource acquisition through competition and dominance
-            aggression_bonus = self.attacks_made * 5    # Reward successful attacks
-            resource_bonus = self.food_collected * 2    # Extra reward for food acquisition
-            self.fitness = base_fitness + aggression_bonus + resource_bonus
-    
-    def _decide_action(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
-        """
-        Make behavioral decision based on simplified genome and world state.
-        
-        With the simplified genome, decision-making is streamlined:
-        - Agents always seek food when visible (survival priority)
-        - Movement is influenced by speed trait
-        - Aggressive agents (GA2) attack when close to cooperative agents
-        - Cooperative agents (GA1) flee from aggressive agents when low energy
-        
-        Args:
-            world_state: Contains nearby food, agents, and hazards
-            
-        Returns:
-            Movement direction as (dx, dy) tuple (-1, 0, or 1 for each axis)
-        """
-        # Extract environmental information
-        nearby_food = world_state.get('nearby_food', [])
-        nearby_agents = world_state.get('nearby_agents', [])
-        
-        dx, dy = 0, 0  # Default: no movement
-        
-        # BEHAVIOR 1: Agent-to-agent interactions
-        if self.agent_type == AgentType.AGGRESSIVE and nearby_agents:
-            # Aggressive agents pursue cooperative agents
-            coop_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
-                          if agent_type == AgentType.COOPERATIVE]
-            if coop_agents:
-                # Move towards nearest cooperative agent
-                target_x, target_y, _ = min(coop_agents, 
-                    key=lambda agent_info: math.sqrt((agent_info[0] - self.x)**2 + (agent_info[1] - self.y)**2))
-                
-                if target_x > self.x:
-                    dx = 1
-                elif target_x < self.x:
-                    dx = -1
-                    
-                if target_y > self.y:
-                    dy = 1
-                elif target_y < self.y:
-                    dy = -1
-                
-                return dx, dy
-        
-        elif self.agent_type == AgentType.COOPERATIVE and nearby_agents and self.energy < 50:
-            # Cooperative agents flee from aggressive agents when low energy
-            aggr_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
-                          if agent_type == AgentType.AGGRESSIVE]
-            if aggr_agents:
-                # Move away from nearest aggressive agent
-                threat_x, threat_y, _ = min(aggr_agents, 
-                    key=lambda agent_info: math.sqrt((agent_info[0] - self.x)**2 + (agent_info[1] - self.y)**2))
-                
-                # Calculate direction away from threat
-                if threat_x > self.x:
-                    dx = -1
-                elif threat_x < self.x:
-                    dx = 1
-                    
-                if threat_y > self.y:
-                    dy = -1
-                elif threat_y < self.y:
-                    dy = 1
-                
-                return dx, dy
-        
-        # BEHAVIOR 2: Food-seeking (primary survival behavior)
-        if nearby_food:
-            closest_food = min(nearby_food, key=lambda f: 
-                             math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
-            
-            # Calculate direction to food
-            if closest_food[0] > self.x:
-                dx = 1
-            elif closest_food[0] < self.x:
-                dx = -1
-                
-            if closest_food[1] > self.y:
-                dy = 1
-            elif closest_food[1] < self.y:
-                dy = -1
-        
-        # BEHAVIOR 3: Random exploration when no targets
-        elif random.random() < 0.4:  # 40% chance of random movement
-            dx = random.choice([-1, 0, 1])
-            dy = random.choice([-1, 0, 1])
+        # Track distance traveled for efficiency metrics
+        if dx != 0 or dy != 0:
+            self.distance_traveled += math.sqrt(dx*dx + dy*dy)
+            self.prev_x, self.prev_y = self.x, self.y
         
         return dx, dy
     
+# Additional improvements for the genetics.py file
 
+    def attack_agent(self, target_agent: 'Agent') -> bool:
+        """Implement attack mechanics for GA2 agents - FURTHER IMPROVED."""
+        if self.agent_type != AgentType.AGGRESSIVE:
+            return False
+            
+        if not target_agent.alive:
+            return False
+        
+        # IMPROVEMENT 1: Make attack success depend more on traits
+        # Attacker advantages
+        attack_speed_bonus = self.genome.speed * 20  # Speed helps with accuracy
+        attack_size_bonus = self.genome.size * 30    # Size provides power
+        
+        # Defender advantages  
+        defense_speed_bonus = target_agent.genome.speed * 25  # Speed helps dodge
+        defense_sense_bonus = target_agent.genome.sense * 15  # Sense helps detect attacks
+        
+        attack_power = attack_size_bonus + attack_speed_bonus + random.uniform(10, 30)
+        defense_power = defense_speed_bonus + defense_sense_bonus + random.uniform(10, 25)
+        
+        self.attacks_made += 1
+        
+        # IMPROVEMENT 2: Graduated success levels instead of binary
+        success_margin = attack_power - defense_power
+        
+        if success_margin > 5:  # Clear success
+            damage = min(success_margin * 0.8, 25)
+            energy_gained = min(damage * 0.5, 20)
+            self.energy += energy_gained
+            self.successful_attacks += 1
+            target_agent.energy -= damage
+            
+            if target_agent.energy <= 0:
+                target_agent.alive = False
+                self.energy += 10  # Kill bonus
+            
+            return True
+        elif success_margin > -5:  # Partial success
+            damage = max(5, success_margin * 0.3)
+            target_agent.energy -= damage
+            self.successful_attacks += 0.5  # Partial credit
+            return True
+        
+        # IMPROVEMENT 3: Attack cost for failed attempts
+        self.energy -= 2  # Small energy cost for failed attacks
+        return False
+    def eat_food(self, food_energy: float):
+        """Food consumption with different efficiency for different agent types."""
+        if self.agent_type == AgentType.COOPERATIVE:
+            self.energy += food_energy
+            self.food_collected += 1
+        else:
+            # GA2: Reduced but not terrible efficiency from food
+            backup_energy = food_energy * 0.7  # FIX: Improved from 0.5 to 0.7
+            self.energy += backup_energy
+            self.food_collected += 1
+
+    def _calculate_fitness(self):
+        """IMPROVED: More sophisticated fitness calculation."""
+        # Base survival
+        survival_fitness = math.log(self.age + 1) * 2.5
+        
+        # Energy management with sustainability focus
+        energy_ratio = self.energy / config.AGENT_ENERGY
+        energy_sustainability = min(energy_ratio * 12, 12)
+        
+        strategic_fitness = 0
+        
+        if self.agent_type == AgentType.COOPERATIVE:
+            # IMPROVEMENT 4: Reward survival efficiency over pure resource collection
+            if self.age > 50:  # Only after surviving reasonable time
+                survival_efficiency = (self.energy + self.food_collected * 10) / math.sqrt(self.age)
+                strategic_fitness += survival_efficiency * 1.5
+            
+            # IMPROVEMENT 5: Reward balanced traits that work well together
+            # Speed-sense synergy (fast agents need good senses)
+            if self.genome.speed > 0.6 and self.genome.sense > 0.4:
+                strategic_fitness += 8
+            # Size-sense balance (bigger agents can afford lower speed but need senses)
+            if self.genome.size > 0.6 and self.genome.sense > 0.5:
+                strategic_fitness += 6
+            
+            # Penalize extreme trait combinations that don't make sense
+            if self.genome.speed > 0.8 and self.genome.size > 0.8:  # Fast AND big is unrealistic
+                strategic_fitness -= 5
+                
+        else:  # GA2 (Predators)
+            # IMPROVEMENT 6: More nuanced hunting fitness
+            if self.age > 30:
+                hunt_efficiency = (self.successful_attacks * 15) / math.sqrt(self.age)
+                strategic_fitness += hunt_efficiency
+            
+            # IMPROVEMENT 7: Reward diverse hunting strategies
+            if self.attacks_made > 0:
+                success_rate = self.successful_attacks / self.attacks_made
+                if 0.3 <= success_rate <= 0.7:  # Reward moderate success rates
+                    strategic_fitness += success_rate * 15
+                else:  # Penalize too high or too low success rates
+                    strategic_fitness += success_rate * 10
+            
+            # Trait synergy rewards for predators
+            if self.genome.size > 0.5 and self.genome.speed > 0.4:  # Balanced hunter
+                strategic_fitness += 8
+        
+        # IMPROVEMENT 8: Age-based fitness plateau to prevent runaway selection
+        if self.age > 200:
+            age_penalty = (self.age - 200) * 0.02  # Small penalty for extreme age
+            survival_fitness -= age_penalty
+        
+        self.fitness = max(survival_fitness + energy_sustainability + strategic_fitness, 1.0)
+
+    def _decide_action(self, world_state: Dict[str, Any]) -> Tuple[int, int]:
+        """IMPROVED: More sophisticated decision making."""
+        nearby_food = world_state.get('nearby_food', [])
+        nearby_agents = world_state.get('nearby_agents', [])
+        
+        vision_range = self.get_vision_range()
+        
+        # Filter by vision
+        visible_food = [(fx, fy) for fx, fy in nearby_food 
+                    if math.sqrt((fx - self.x)**2 + (fy - self.y)**2) <= vision_range]
+        
+        visible_agents = [(ax, ay, agent_type) for ax, ay, agent_type in nearby_agents 
+                        if math.sqrt((ax - self.x)**2 + (ay - self.y)**2) <= vision_range]
+        
+        # IMPROVEMENT 9: Energy-based decision thresholds
+        energy_ratio = self.energy / config.AGENT_ENERGY
+        
+        if self.agent_type == AgentType.AGGRESSIVE:
+            # Predators become more food-focused when energy is low
+            if energy_ratio < 0.3 and visible_food:
+                closest_food = min(visible_food, key=lambda f: 
+                                math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
+                return self._calculate_movement_direction(closest_food[0], closest_food[1])
+            
+            # Normal hunting behavior
+            if visible_agents and energy_ratio > 0.2:
+                prey = [(ax, ay, at) for ax, ay, at in visible_agents 
+                    if at == AgentType.COOPERATIVE]
+                if prey:
+                    # IMPROVEMENT 10: Smart target selection based on traits
+                    def target_priority(prey_info):
+                        px, py, _ = prey_info
+                        distance = math.sqrt((px - self.x)**2 + (py - self.y)**2)
+                        # Prefer closer, easier targets (this would need agent reference)
+                        return distance
+                    
+                    target_x, target_y, _ = min(prey, key=target_priority)
+                    return self._calculate_movement_direction(target_x, target_y)
+        
+        else:  # Cooperative agents
+            # IMPROVEMENT 11: Dynamic threat assessment
+            if visible_agents:
+                predators = [(ax, ay, at) for ax, ay, at in visible_agents 
+                            if at == AgentType.AGGRESSIVE]
+                if predators:
+                    closest_pred_dist = min(math.sqrt((px - self.x)**2 + (py - self.y)**2) 
+                                        for px, py, _ in predators)
+                    
+                    # Flee threshold based on traits and energy
+                    flee_threshold = 40 + (self.genome.size * 30) + (energy_ratio * 20)
+                    threat_distance = 30 + (self.genome.sense * 40)  # Better senses = detect threats earlier
+                    
+                    if closest_pred_dist < threat_distance and self.energy < flee_threshold:
+                        threat_x, threat_y, _ = min(predators, key=lambda p: 
+                            math.sqrt((p[0] - self.x)**2 + (p[1] - self.y)**2))
+                        return self._calculate_movement_direction(threat_x, threat_y, flee=True)
+            
+            # Food seeking with energy consideration
+            if visible_food and (energy_ratio < 0.6 or not visible_agents):
+                closest_food = min(visible_food, key=lambda f: 
+                                math.sqrt((f[0] - self.x)**2 + (f[1] - self.y)**2))
+                return self._calculate_movement_direction(closest_food[0], closest_food[1])
+        
+        # IMPROVEMENT 12: Smarter exploration
+        exploration_chance = 0.1 + (self.genome.speed * 0.2) + (energy_ratio * 0.1)
+        if random.random() < exploration_chance:
+            # Bias exploration away from world edges
+            dx = random.choice([-1, 0, 1])
+            dy = random.choice([-1, 0, 1])
+            return dx, dy
+        
+        return 0, 0
+        
+    def _calculate_movement_direction(self, target_x: int, target_y: int, flee: bool = False) -> Tuple[int, int]:
+        """Helper method to calculate movement direction towards or away from target."""
+        if flee:
+            dx = -1 if target_x > self.x else (1 if target_x < self.x else 0)
+            dy = -1 if target_y > self.y else (1 if target_y < self.y else 0)
+        else:
+            dx = 1 if target_x > self.x else (-1 if target_x < self.x else 0)
+            dy = 1 if target_y > self.y else (-1 if target_y < self.y else 0)
+        
+        return dx, dy
 
 
 class GeneticAlgorithm:
-    """
-    Manages evolution of a population using genetic algorithm principles.
-    
-    This class handles:
-    - Population initialization and management
-    - Selection of parents for reproduction
-    - Crossover and mutation operations
-    - Generation tracking and statistics
-    
-    Each GA instance manages one population (either cooperative or aggressive agents).
-    """
+    """FIX: Enhanced GA with better diversity management and population control."""
     
     def __init__(self, agent_type: AgentType):
-        """
-        Initialize genetic algorithm for a specific agent type.
+        self.agent_type = agent_type
+        self.generation = 0
+        self.population: List[Agent] = []
         
-        Args:
-            agent_type: Whether this GA evolves cooperative or aggressive agents
-        """
-        self.agent_type = agent_type        # Type of agents this GA manages
-        self.generation = 0                 # Current generation number
-        self.population: List[Agent] = []   # Current population of agents
+        # Performance tracking
+        self.best_fitness_history = []
+        self.avg_fitness_history = []
         
-        # Performance tracking across generations
-        self.best_fitness_history = []      # Best fitness each generation
-        self.avg_fitness_history = []       # Average fitness each generation
-        
+        # FIX: Add diversity tracking
+        self.diversity_history = []
+        self.last_diversity = 0.0
+    
     def initialize_population(self, spawn_positions: List[Tuple[int, int]]):
-        """
-        Create the first generation with random genomes.
-        
-        Args:
-            spawn_positions: List of (x, y) coordinates where agents can spawn
-        """
-        self.population = []
-        
-        # Use different population sizes for different agent types
+        """FIX: Improved population initialization with better diversity."""
         population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
         
+        # Create initial population with enforced diversity
+        self.population = []
+        
+        # Generate diverse starting population
         for i in range(population_size):
-            # Cycle through spawn positions if there are fewer positions than agents
             pos = spawn_positions[i % len(spawn_positions)]
             
-            # Create genome with biased traits based on agent type
-            if self.agent_type == AgentType.COOPERATIVE:
-                # GA1 starts with higher speed advantage
-                genome = Genome(
-                    speed=random.uniform(0.6, 1.0),  # Higher starting speed (60-100%)
-                    sense=random.random(),            # Random sense
-                    size=random.uniform(0.0, 0.4)    # Smaller starting size (faster)
-                )
-            else:
-                # GA2 starts with more balanced traits
-                genome = Genome(
-                    speed=random.uniform(0.2, 0.6),  # Lower starting speed (20-60%)
-                    sense=random.random(),            # Random sense  
-                    size=random.uniform(0.4, 0.8)    # Larger starting size (more damage)
-                )
+            # FIX: Create genomes with guaranteed diversity
+            genome = Genome(
+                speed=0.1 + (i / population_size) * 0.8,      # Spread across range
+                sense=random.uniform(0.2, 0.8),               # More moderate range
+                size=random.uniform(0.2, 0.8)                 # More moderate range
+            )
+            
+            # Add some randomization to avoid too rigid patterns
+            genome.speed += random.uniform(-0.1, 0.1)
+            genome.sense += random.uniform(-0.1, 0.1)
+            genome.size += random.uniform(-0.1, 0.1)
             
             agent = Agent(pos[0], pos[1], self.agent_type, genome)
             self.population.append(agent)
+        
+        print(f"Initialized {self.agent_type.value} population:")
+        print(f"  Population size: {len(self.population)}")
+        
+        # Display trait diversity
+        self._print_population_stats()
     
     def evolve_generation(self, spawn_positions: List[Tuple[int, int]]):
-        """
-        Evolve from current generation to the next using GA operations.
-        
-        Evolution process:
-        1. Record statistics from current generation
-        2. Handle population extinction scenarios
-        3. Select elite agents (best performers)
-        4. Generate new population through crossover and mutation
-        5. Increment generation counter
-        
-        Args:
-            spawn_positions: Where new agents can be placed
-        """
+        """FIX: Enhanced evolution with diversity protection."""
         if not self.population:
             return
             
-        # Step 1: Collect statistics and handle extinction
         alive_agents = [agent for agent in self.population if agent.alive]
         
-        if not alive_agents:
-            # EXTINCTION RECOVERY: Restart with random population
-            print(f"Population extinction in {self.agent_type.value}! Restarting with random genomes...")
-            self.initialize_population(spawn_positions)
+        # FIX: Better extinction recovery
+        if len(alive_agents) < 3:  # Changed from 0 to 3
+            print(f"Population critically low in {self.agent_type.value}! Boosting diversity...")
+            self._boost_population_diversity(spawn_positions, alive_agents)
             return
-            
-        # Record generation statistics for analysis
+        
+        # Record generation statistics
         fitnesses = [agent.fitness for agent in alive_agents]
         if fitnesses:
             self.best_fitness_history.append(max(fitnesses))
             self.avg_fitness_history.append(sum(fitnesses) / len(fitnesses))
         
-        # Step 2: Create new population through genetic operations
-        new_population = []
+        # FIX: Calculate and track genetic diversity
+        diversity = self._calculate_genetic_diversity(alive_agents)
+        self.diversity_history.append(diversity)
+        self.last_diversity = diversity
         
-        # ELITISM: Keep the best performers from current generation
-        # This ensures that good solutions are not lost during evolution
-        elite_count = max(1, min(len(alive_agents), config.POPULATION_SIZE // 10))
+        # Create new population
+        new_population = []
+        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+        
+        # FIX: Adaptive elitism based on diversity
+        if diversity > 0.3:
+            elite_count = max(1, population_size // 8)  # Normal elitism
+        else:
+            elite_count = max(1, population_size // 12)  # Reduced elitism when diversity is low
+        
         elite = sorted(alive_agents, key=lambda x: x.fitness, reverse=True)[:elite_count]
         
-        # Add elite agents to new population (with new positions)
+        # Add elite agents
         for agent in elite:
             pos = random.choice(spawn_positions)
             new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
             new_population.append(new_agent)
         
-        # REPRODUCTION: Generate remaining population through crossover and mutation
-        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
-        
+        # Generate remaining population
         while len(new_population) < population_size:
             if len(alive_agents) >= 2:
-                # Normal case: select two parents for reproduction
                 parent1 = self._tournament_selection()
                 parent2 = self._tournament_selection()
                 
-                # CROSSOVER: Combine genetic material from two parents
-                if random.random() < config.CROSSOVER_RATE:
-                    child_genome = self._crossover(parent1.genome, parent2.genome)
+                # FIX: Adaptive crossover rate based on diversity
+                crossover_rate = config.CROSSOVER_RATE
+                if diversity < 0.2:
+                    crossover_rate *= 1.5  # Increase crossover when diversity is low
+                
+                if random.random() < crossover_rate:
+                    child_genome = self._enhanced_crossover(parent1.genome, parent2.genome)
                 else:
-                    # No crossover: clone one parent
                     child_genome = parent1.genome
             else:
-                # Edge case: very few survivors, use best available or random
-                if alive_agents:
-                    child_genome = alive_agents[0].genome
-                else:
-                    child_genome = Genome.random()
+                child_genome = alive_agents[0].genome if alive_agents else Genome.random()
             
-            # MUTATION: Randomly modify genetic traits
-            if random.random() < config.MUTATION_RATE:
-                child_genome = self._mutate(child_genome)
+            # FIX: Adaptive mutation rate based on diversity
+            mutation_rate = self._adaptive_mutation_rate(diversity)
+            if random.random() < mutation_rate:
+                child_genome = self._enhanced_mutate(child_genome, diversity)
             
-            # Create new agent with evolved genome
             pos = random.choice(spawn_positions)
             child = Agent(pos[0], pos[1], self.agent_type, child_genome)
             new_population.append(child)
         
-        # Step 3: Replace old population and advance generation
         self.population = new_population
         self.generation += 1
+        
+        # FIX: Print diversity warning if needed
+        if diversity < 0.1:
+            print(f"Warning: Low genetic diversity ({diversity:.3f}) in {self.agent_type.value}")
+    
+    def _boost_population_diversity(self, spawn_positions: List[Tuple[int, int]], survivors: List[Agent]):
+        """FIX: Emergency diversity boost when population is critically low."""
+        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+        
+        self.population = []
+        
+        # Keep survivors
+        for agent in survivors:
+            pos = random.choice(spawn_positions)
+            new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
+            self.population.append(new_agent)
+        
+        # Add highly diverse new agents
+        while len(self.population) < population_size:
+            pos = random.choice(spawn_positions)
+            
+            # Create diverse genome
+            genome = Genome(
+                speed=random.uniform(0.1, 0.9),
+                sense=random.uniform(0.1, 0.9),
+                size=random.uniform(0.1, 0.9)
+            )
+            
+            new_agent = Agent(pos[0], pos[1], self.agent_type, genome)
+            self.population.append(new_agent)
+    
+    def _calculate_genetic_diversity(self, agents: List[Agent]) -> float:
+        """FIX: Calculate actual genetic diversity of population."""
+        if len(agents) < 2:
+            return 0.0
+        
+        # Calculate variance for each trait
+        speeds = [agent.genome.speed for agent in agents]
+        senses = [agent.genome.sense for agent in agents]
+        sizes = [agent.genome.size for agent in agents]
+        
+        speed_var = np.var(speeds) if len(speeds) > 1 else 0.0
+        sense_var = np.var(senses) if len(senses) > 1 else 0.0
+        size_var = np.var(sizes) if len(sizes) > 1 else 0.0
+        
+        # Average variance across all traits
+        return (speed_var + sense_var + size_var) / 3.0
+    
+    def _adaptive_mutation_rate(self, diversity: float) -> float:
+        """FIX: Adaptive mutation rate based on population diversity."""
+        base_rate = config.MUTATION_RATE
+        
+        if diversity < 0.1:
+            return base_rate * 3.0    # Triple mutation when diversity is very low
+        elif diversity < 0.2:
+            return base_rate * 2.0    # Double mutation when diversity is low
+        elif diversity > 0.5:
+            return base_rate * 0.7    # Reduce mutation when diversity is high
+        else:
+            return base_rate
+    
+    def _enhanced_crossover(self, genome1: Genome, genome2: Genome) -> Genome:
+        """FIX: Enhanced crossover with intermediate recombination."""
+        # 50% chance of uniform crossover, 50% chance of intermediate recombination
+        if random.random() < 0.5:
+            # Uniform crossover (original method)
+            return Genome(
+                speed=genome1.speed if random.random() < 0.5 else genome2.speed,
+                sense=genome1.sense if random.random() < 0.5 else genome2.sense,
+                size=genome1.size if random.random() < 0.5 else genome2.size
+            )
+        else:
+            # Intermediate recombination (blend traits)
+            alpha = random.uniform(0.3, 0.7)  # Blending factor
+            return Genome(
+                speed=alpha * genome1.speed + (1 - alpha) * genome2.speed,
+                sense=alpha * genome1.sense + (1 - alpha) * genome2.sense,
+                size=alpha * genome1.size + (1 - alpha) * genome2.size
+            )
+    
+    def _enhanced_mutate(self, genome: Genome, diversity: float) -> Genome:
+        """FIX: Enhanced mutation with diversity-based strength."""
+        # Stronger mutations when diversity is low
+        if diversity < 0.1:
+            mutation_strength = 0.2    # Large mutations
+        elif diversity < 0.2:
+            mutation_strength = 0.15   # Medium mutations
+        else:
+            mutation_strength = 0.1    # Normal mutations
+        
+        mutated_genome = Genome(
+            speed=max(0.01, min(0.99, genome.speed + random.gauss(0, mutation_strength))),
+            sense=max(0.01, min(0.99, genome.sense + random.gauss(0, mutation_strength))),
+            size=max(0.01, min(0.99, genome.size + random.gauss(0, mutation_strength)))
+        )
+        return mutated_genome
     
     def _tournament_selection(self) -> Agent:
-        """
-        Select parent agent using tournament selection.
-        
-        Tournament selection works by:
-        1. Randomly choosing a small group of agents (tournament)
-        2. Selecting the best agent from that group
-        3. This gives better agents higher chance of reproduction while
-           maintaining some randomness
-        
-        Returns:
-            Agent: Selected parent for reproduction
-        """
+        """Tournament selection with fallback handling."""
         alive_agents = [a for a in self.population if a.alive]
         
-        # Handle edge cases where few or no agents are alive
         if not alive_agents:
-            return random.choice(self.population)  # Fallback to any agent
+            return random.choice(self.population)
         
-        # Ensure tournament size doesn't exceed available agents
         tournament_size = min(config.TOURNAMENT_SIZE, len(alive_agents))
         if tournament_size == 0:
             return random.choice(alive_agents)
         
-        # Conduct tournament: select random group and return best
         tournament = random.sample(alive_agents, tournament_size)
         return max(tournament, key=lambda x: x.fitness)
     
-    def _crossover(self, genome1: Genome, genome2: Genome) -> Genome:
-        """
-        Create offspring genome by combining traits from two parents.
+    def _print_population_stats(self):
+        """Helper method to print population statistics."""
+        speeds = [agent.genome.speed for agent in self.population]
+        senses = [agent.genome.sense for agent in self.population]
+        sizes = [agent.genome.size for agent in self.population]
         
-        Uses uniform crossover: for each trait, randomly choose which parent
-        to inherit from. This maintains genetic diversity while combining
-        successful traits from both parents.
-        
-        Args:
-            genome1, genome2: Parent genomes
-            
-        Returns:
-            Genome: New child genome with mixed traits
-        """
-        new_genome = Genome(
-            speed=genome1.speed if random.random() < 0.5 else genome2.speed,
-            sense=genome1.sense if random.random() < 0.5 else genome2.sense,
-            size=genome1.size if random.random() < 0.5 else genome2.size
-        )
-        return new_genome
-    
-    def _mutate(self, genome: Genome) -> Genome:
-        """
-        Apply random mutations to a genome.
-        
-        Uses Gaussian (normal) mutation: adds small random values to each trait.
-        This allows for fine-tuning of successful strategies while occasionally
-        making larger changes that could lead to breakthrough behaviors.
-        
-        Args:
-            genome: Original genome to mutate
-            
-        Returns:
-            Genome: Mutated version with modified traits
-        """
-        mutated_genome = Genome(
-            speed=max(0, min(1, genome.speed + random.gauss(0, 0.1))),
-            sense=max(0, min(1, genome.sense + random.gauss(0, 0.1))),
-            size=max(0, min(1, genome.size + random.gauss(0, 0.1)))
-        )
-        return mutated_genome 
+        print(f"  Speed range: {min(speeds):.3f} - {max(speeds):.3f} (var: {np.var(speeds):.3f})")
+        print(f"  Sense range: {min(senses):.3f} - {max(senses):.3f} (var: {np.var(senses):.3f})")
+        print(f"  Size range: {min(sizes):.3f} - {max(sizes):.3f} (var: {np.var(sizes):.3f})")

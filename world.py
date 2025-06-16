@@ -82,8 +82,9 @@ class World:
         1. Time progression
         2. Dynamic food spawning
         3. Agent-food interactions (eating)
-        4. Agent-hazard interactions (damage)
-        5. Boundary enforcement
+        4. Agent-agent interactions (combat)
+        5. Agent-hazard interactions (damage)
+        6. Boundary enforcement
         
         Args:
             agents: List of all agents in the world
@@ -103,62 +104,65 @@ class World:
             if not agent.alive:
                 continue  # Skip dead agents
                 
-            # FOOD CONSUMPTION: Check if agent is close enough to eat food
+            # FIX 1: FOOD CONSUMPTION - Use the agent's eat_food() method
+            # This properly handles both GA1 and GA2 food consumption
             for food in self.food[:]:  # Use slice copy to allow safe removal during iteration
                 # Simple collision detection: if agent and food overlap
                 if abs(agent.x - food.x) < 20 and abs(agent.y - food.y) < 20:
-                    # Agent successfully eats food
-                    agent.energy += config.EATING_REWARD
-                    agent.food_collected += 1
+                    # Use agent's eat_food method which handles GA1/GA2 differences
+                    agent.eat_food(config.EATING_REWARD)
                     self.food.remove(food)  # Remove eaten food from world
                     break  # Agent can only eat one food per frame
             
-            # AGENT-TO-AGENT COMBAT: Aggressive agents attack cooperative ones
-            from config import AgentType
-            if (agent.agent_type == AgentType.AGGRESSIVE and agent.energy > 50):
+            # HAZARD DAMAGE: Check if agent is in dangerous area
+            for hazard in self.hazards:
+                if abs(agent.x - hazard.x) < 30 and abs(agent.y - hazard.y) < 30:
+                    # Agent takes continuous damage from hazard
+                    hazard_damage = 15
+                    agent.energy -= hazard_damage
+                    
+                    # Visual feedback - mark agent as in hazard
+                    if not hasattr(agent, 'in_hazard'):
+                        agent.in_hazard = 0
+                    agent.in_hazard = 5  # Mark for 5 frames
+                    
+                    # Kill agent if energy drops too low from hazard
+                    if agent.energy <= 0:
+                        agent.alive = False
+        
+        # FIX 2: AGENT-TO-AGENT COMBAT - Separate loop to use proper attack mechanics
+        # Handle combat interactions using the agent's attack_agent() method
+        from config import AgentType
+        
+        alive_agents = [a for a in agents if a.alive]
+        
+        for agent in alive_agents:
+            if agent.agent_type == AgentType.AGGRESSIVE and agent.energy > 30:  # Lower threshold for attacking
                 
-                for other_agent in agents:
-                    if (other_agent != agent and other_agent.alive and 
-                        other_agent.agent_type == AgentType.COOPERATIVE):
+                for target in alive_agents:
+                    if (target != agent and target.alive and 
+                        target.agent_type == AgentType.COOPERATIVE):
                         
                         # Check if agents are close enough for combat (based on size)
                         agent_size = 10 + (agent.genome.size * 15)  # 10-25 pixel radius
-                        other_size = 10 + (other_agent.genome.size * 15)
-                        collision_distance = agent_size + other_size
+                        target_size = 10 + (target.genome.size * 15)
+                        collision_distance = agent_size + target_size
                         
-                        distance = math.sqrt((agent.x - other_agent.x)**2 + (agent.y - other_agent.y)**2)
-                        if distance < collision_distance and random.random() < 0.3:  # 30% chance of attack
-                            # Combat! Larger agents do more damage
-                            base_damage = 15
-                            size_damage_bonus = agent.genome.size * 10  # Larger = more damage
-                            total_damage = base_damage + size_damage_bonus
-                            
-                            other_agent.energy = max(0, other_agent.energy - total_damage)
-                            agent.attacks_made += 1
-                            
-                            # Attacker gains energy from successful attack
-                            energy_gain = 8
-                            agent.energy = min(config.AGENT_ENERGY, agent.energy + energy_gain)
-                            
-                            if other_agent.energy <= 0:
-                                other_agent.alive = False
-                            
-                            break  # One attack per frame
-            
-            # HAZARD DAMAGE: Check if agent is in dangerous area
-            for hazard in self.hazards:
-                if abs(agent.x - hazard.x) < 20 and abs(agent.y - hazard.y) < 20:
-                    # Agent takes damage from hazard
-                    agent.energy -= 10
-                    # Note: Could add more sophisticated damage systems here
+                        distance = math.sqrt((agent.x - target.x)**2 + (agent.y - target.y)**2)
+                        
+                        # FIX 3: Use the agent's attack_agent() method for proper combat mechanics
+                        if distance < collision_distance and random.random() < 0.2:  # 20% chance of attack per frame
+                            success = agent.attack_agent(target)
+                            if success:
+                                break  # One successful attack per frame per agent
     
     def get_world_state_for_agent(self, agent, all_agents: List) -> Dict[str, Any]:
         """
         Provide environmental information visible to an agent for decision-making.
         
         This implements the agent's "sensory system" - what information they can
-        perceive about their environment. Vision range is now determined by the
-        agent's genetic sense trait.
+        perceive about their environment. Vision range is determined by the
+        agent's genetic sense trait using the agent's get_vision_range() method.
         
         Args:
             agent: The agent requesting world state information
@@ -167,10 +171,8 @@ class World:
         Returns:
             Dictionary containing nearby objects within agent's vision range
         """
-        # Vision range based on agent's sense trait (50-150 pixel range)
-        base_vision = 50
-        max_vision_bonus = 100
-        vision_range = base_vision + (agent.genome.sense * max_vision_bonus)
+        # FIX 4: Use agent's genetic vision range method
+        vision_range = agent.get_vision_range()
         
         # FOOD DETECTION: Find all food within vision range
         nearby_food = []
@@ -202,6 +204,52 @@ class World:
             'nearby_hazards': nearby_hazards
         }
     
+    def apply_agent_movement(self, agent, dx: int, dy: int):
+        """
+        FIX 5: Apply agent movement with proper speed scaling and boundary enforcement.
+        
+        This method handles:
+        - Speed trait scaling
+        - Boundary collision
+        - Movement validation
+        
+        Args:
+            agent: The agent to move
+            dx, dy: Desired movement direction (-1, 0, or 1)
+        """
+        if not agent.alive or (dx == 0 and dy == 0):
+            return
+        
+        # Apply genetic speed scaling
+        speed_multiplier = agent.get_movement_speed()
+        
+        # Calculate actual movement distance based on genetics
+        # Base movement is 2-6 pixels, scaled by speed trait
+        base_movement = 4  # Increased from 2 to 4
+        actual_movement = max(2, int(base_movement * speed_multiplier))  # Min 2 pixels
+        
+        # Apply movement with boundary checking
+        new_x = agent.x + (dx * actual_movement)
+        new_y = agent.y + (dy * actual_movement)
+        
+        # Boundary enforcement with proper margins for agent size
+        agent_radius = 5 + int(agent.genome.size * 10)  # Agent visual size
+        margin = agent_radius + 5  # Extra safety margin
+        
+        if new_x < margin:
+            new_x = margin
+        elif new_x >= self.width - margin:
+            new_x = self.width - margin - 1
+            
+        if new_y < margin:
+            new_y = margin
+        elif new_y >= self.height - margin:
+            new_y = self.height - margin - 1
+        
+        # Update agent position
+        agent.x = new_x
+        agent.y = new_y
+    
     def is_generation_complete(self, agents: List) -> bool:
         """
         Determine if the current generation should end and evolution should occur.
@@ -209,6 +257,7 @@ class World:
         Generation end conditions:
         1. Very few agents remain alive (population bottleneck)
         2. Maximum time limit reached (prevents infinite generations)
+        3. Population stagnation (optional - could add if needed)
         
         Args:
             agents: All agents in current generation
@@ -218,9 +267,16 @@ class World:
         """
         alive_agents = [a for a in agents if a.alive]
         
+        # FIX 6: More nuanced generation end conditions
+        total_population = len(agents)
+        alive_count = len(alive_agents)
+        
+        # End generation if population drops below 20% of original
+        population_threshold = max(2, total_population * 0.2)
+        
         return (
-            len(alive_agents) <= 2 or                      # Population bottleneck
-            self.generation_time > self.max_generation_time  # Time limit reached
+            alive_count <= population_threshold or              # Population bottleneck
+            self.generation_time > self.max_generation_time     # Time limit reached
         )
     
     def reset_for_new_generation(self):
@@ -236,4 +292,53 @@ class World:
         # Clear all objects and respawn fresh ones
         self.food.clear()
         self.hazards.clear()
-        self._spawn_initial_objects() 
+        self._spawn_initial_objects()
+    
+    def get_spawn_positions(self, count: int) -> List[Tuple[int, int]]:
+        """
+        FIX 7: Generate safe spawn positions for new agents.
+        
+        This ensures agents don't spawn inside hazards or on top of each other.
+        
+        Args:
+            count: Number of spawn positions needed
+            
+        Returns:
+            List of (x, y) coordinate tuples
+        """
+        positions = []
+        max_attempts = count * 10  # Prevent infinite loops
+        attempts = 0
+        
+        while len(positions) < count and attempts < max_attempts:
+            x = random.randint(50, self.width - 50)   # Stay away from edges
+            y = random.randint(50, self.height - 50)
+            
+            # Check if position is safe (not in hazard, not too close to other spawn points)
+            safe = True
+            
+            # Check distance from hazards
+            for hazard in self.hazards:
+                if math.sqrt((x - hazard.x)**2 + (y - hazard.y)**2) < 50:
+                    safe = False
+                    break
+            
+            # Check distance from other spawn positions
+            if safe:
+                for px, py in positions:
+                    if math.sqrt((x - px)**2 + (y - py)**2) < 30:
+                        safe = False
+                        break
+            
+            if safe:
+                positions.append((x, y))
+            
+            attempts += 1
+        
+        # If we couldn't find enough safe positions, fill with random ones
+        while len(positions) < count:
+            x = random.randint(20, self.width - 20)
+            y = random.randint(20, self.height - 20)
+            positions.append((x, y))
+        
+        return positions
