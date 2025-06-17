@@ -118,6 +118,32 @@ def demonstrate_best_parameters(training_system):
             print("  No optimized parameters found")
 
 
+def create_summary_report(training_system):
+    """Create a comprehensive summary report."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    report_filename = f"neural_optimization_report_{timestamp}.txt"
+    
+    with open(report_filename, 'w') as f:
+        f.write("Neural Hyperparameter Optimization Report\n")
+        f.write("=" * 50 + "\n\n")
+        f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        
+        f.write("SYSTEM OVERVIEW:\n")
+        f.write("- Enhanced board size: 1200x900 pixels (50% larger)\n")
+        f.write("- Scaled populations: GA1=150, GA2=30 agents\n")
+        f.write("- Three neural networks trained for different objectives\n")
+        f.write("- Automated hyperparameter discovery\n\n")
+        
+        f.write("TRAINING SUMMARY:\n")
+        f.write(training_system.optimizer.get_training_summary())
+        
+        f.write("\nFILES GENERATED:\n")
+        f.write("- final_trained_models_*.pth (Neural network weights)\n")
+        f.write("- neural_training_summary.json (Detailed results)\n")
+        f.write("- training_progress_*.png (Visualization graphs)\n")
+        f.write(f"- {report_filename} (This report)\n")
+    
+    print(f"\n📄 Comprehensive report saved: {report_filename}")
 
 
 def main():
