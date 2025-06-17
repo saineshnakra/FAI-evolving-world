@@ -1,0 +1,49 @@
+{
+  "training_config": {
+    "episodes_per_objective": 10,
+    "max_simulation_time": 60
+  },
+  "neural_network_summary": "Neural Hyperparameter Optimizer Training Summary\n==================================================\n\nGA1_DOMINANCE:\n  Training Episodes: 10\n  Best Reward: 0.2000\n  Average Reward: 0.2000\n  Latest Reward: 0.2000\n\nGA2_DOMINANCE:\n  Training Episodes: 10\n  Best Reward: 0.2000\n  Average Reward: 0.2000\n  Latest Reward: 0.2000\n\nCOEXISTENCE:\n  Training Episodes: 10\n  Best Reward: 0.8258\n  Average Reward: 0.8154\n  Latest Reward: 0.8156\n\n",
+  "best_parameters": {
+    "ga1_dominance": {
+      "population_size_ga1": 91,
+      "population_size_ga2": 22,
+      "food_count": 153,
+      "hazard_count": 10,
+      "food_spawn_rate": 0.45903661847114563,
+      "agent_energy": 155,
+      "movement_cost": 0.9559798240661621,
+      "eating_reward": 23,
+      "mutation_rate": 0.5112628936767578,
+      "crossover_rate": 0.49934133887290955,
+      "tournament_size": 2
+    },
+    "ga2_dominance": {
+      "population_size_ga1": 83,
+      "population_size_ga2": 25,
+      "food_count": 127,
+      "hazard_count": 11,
+      "food_spawn_rate": 0.4800640642642975,
+      "agent_energy": 127,
+      "movement_cost": 1.029834508895874,
+      "eating_reward": 20,
+      "mutation_rate": 0.5193601250648499,
+      "crossover_rate": 0.4523147642612457,
+      "tournament_size": 2
+    },
+    "coexistence": {
+      "population_size_ga1": 106,
+      "population_size_ga2": 25,
+      "food_count": 145,
+      "hazard_count": 10,
+      "food_spawn_rate": 0.5263798832893372,
+      "agent_energy": 152,
+      "movement_cost": 0.9400492906570435,
+      "eating_reward": 24,
+      "mutation_rate": 0.5573204159736633,
+      "crossover_rate": 0.5037510395050049,
+      "tournament_size": 2
+    }
+  },
+  "timestamp": "2025-06-16T13:20:54.535290"
+}
