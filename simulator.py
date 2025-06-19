@@ -66,6 +66,7 @@ class Simulation:
         spawn_positions = self.world.get_spawn_positions(
             config.POPULATION_SIZE_GA1 + config.POPULATION_SIZE_GA2
         )
+        print(spawn_positions)
         
         print("Initializing populations...")
         self.ga1.initialize_population(spawn_positions)

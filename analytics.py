@@ -463,7 +463,8 @@ class Analytics:
                 'avg_age': 0,
                 'survival_rate': 0,
                 'total_attacks': 0,
-                'total_successful_attacks': 0
+                'total_successful_attacks': 0,
+                'attack_success_rate': 0  
             }
         
         # Extract performance metrics

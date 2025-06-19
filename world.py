@@ -118,7 +118,7 @@ class World:
             for hazard in self.hazards:
                 if abs(agent.x - hazard.x) < 30 and abs(agent.y - hazard.y) < 30:
                     # Agent takes continuous damage from hazard
-                    hazard_damage = 15
+                    hazard_damage = 2
                     agent.energy -= hazard_damage
                     
                     # Visual feedback - mark agent as in hazard
@@ -340,5 +340,6 @@ class World:
             x = random.randint(20, self.width - 20)
             y = random.randint(20, self.height - 20)
             positions.append((x, y))
+            print("Random:" , x,y)
         
         return positions

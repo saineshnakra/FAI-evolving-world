@@ -24,24 +24,24 @@ class Config:
     Modify these values to experiment with different scenarios.
     """
     # World/Environment settings
-    WORLD_WIDTH: int = 800          # Simulation world width in pixels
-    WORLD_HEIGHT: int = 600         # Simulation world height in pixels
+    WORLD_WIDTH: int = 1000          # Simulation world width in pixels
+    WORLD_HEIGHT: int = 800         # Simulation world height in pixels
     GRID_SIZE: int = 20             # Size of world grid cells (for collision detection)
     
     # Population genetics settings
-    POPULATION_SIZE_GA1: int = 100      # Cooperative agents (larger population)
-    POPULATION_SIZE_GA2: int = 20       # Aggressive agents (smaller population)
+    POPULATION_SIZE_GA1: int = 10      # Cooperative agents (larger population)
+    POPULATION_SIZE_GA2: int = 20     # Aggressive agents (smaller population)
     POPULATION_SIZE: int = 50           # Keep for backwards compatibility
-    MAX_GENERATIONS: int = 501          # Maximum generations to simulate
+    MAX_GENERATIONS: int = 1001          # Maximum generations to simulate
     
     # Environment dynamics - IMPROVED FOR BETTER SURVIVAL
-    FOOD_COUNT: int = 120           # Even more initial food availability
+    FOOD_COUNT: int = 200           # Even more initial food availability
     HAZARD_COUNT: int = 8           # More hazards to make them noticeable
     FOOD_SPAWN_RATE: float = 0.35   # Very high food spawn rate
     
     # Agent energy and survival mechanics - IMPROVED FOR SURVIVAL
     AGENT_ENERGY: int = 150         # Increased starting energy
-    MOVEMENT_COST: int = 0.5        # Reduced energy cost for movement
+    MOVEMENT_COST: int = 1        # Reduced energy cost for movement
     EATING_REWARD: int = 30         # Increased energy from food
     SURVIVAL_REWARD: int = 1        # Fitness bonus per frame survived
     
@@ -51,7 +51,7 @@ class Config:
     TOURNAMENT_SIZE: int = 3        # Number of agents competing in tournament selection
     
     # Visualization and performance
-    FPS: int = 1000                   # Frames per second for real-time display
+    FPS: int = 999                   # Frames per second for real-time display
     COLORS = {                      # Color scheme for different elements
         'BACKGROUND': (20, 20, 30),     # Dark background
         'FOOD': (0, 255, 0),            # Green food items

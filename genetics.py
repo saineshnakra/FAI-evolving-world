@@ -166,7 +166,7 @@ class Agent:
         if self.agent_type == AgentType.COOPERATIVE:
             self.energy += food_energy
             self.food_collected += 1
-        else:
+        elif self.agent_type == AgentType.AGGRESSIVE and self.energy < 0.2 * config.AGENT_ENERGY:
             # GA2: Reduced but not terrible efficiency from food
             backup_energy = food_energy * 0.7  # FIX: Improved from 0.5 to 0.7
             self.energy += backup_energy
@@ -359,107 +359,107 @@ class GeneticAlgorithm:
         # Display trait diversity
         self._print_population_stats()
     
-    def evolve_generation(self, spawn_positions: List[Tuple[int, int]]):
-        """FIX: Enhanced evolution with diversity protection."""
-        if not self.population:
-            return
+    # def evolve_generation(self, spawn_positions: List[Tuple[int, int]]):
+    #     """FIX: Enhanced evolution with diversity protection."""
+    #     if not self.population:
+    #         return
             
-        alive_agents = [agent for agent in self.population if agent.alive]
+    #     alive_agents = [agent for agent in self.population if agent.alive]
         
-        # FIX: Better extinction recovery
-        if len(alive_agents) < 3:  # Changed from 0 to 3
-            print(f"Population critically low in {self.agent_type.value}! Boosting diversity...")
-            self._boost_population_diversity(spawn_positions, alive_agents)
-            return
+    #     # FIX: Better extinction recovery
+    #     if len(alive_agents) < 3:  # Changed from 0 to 3
+    #         print(f"Population critically low in {self.agent_type.value}! Boosting diversity...")
+    #         self._boost_population_diversity(spawn_positions, alive_agents)
+    #         return
         
-        # Record generation statistics
-        fitnesses = [agent.fitness for agent in alive_agents]
-        if fitnesses:
-            self.best_fitness_history.append(max(fitnesses))
-            self.avg_fitness_history.append(sum(fitnesses) / len(fitnesses))
+    #     # Record generation statistics
+    #     fitnesses = [agent.fitness for agent in alive_agents]
+    #     if fitnesses:
+    #         self.best_fitness_history.append(max(fitnesses))
+    #         self.avg_fitness_history.append(sum(fitnesses) / len(fitnesses))
         
-        # FIX: Calculate and track genetic diversity
-        diversity = self._calculate_genetic_diversity(alive_agents)
-        self.diversity_history.append(diversity)
-        self.last_diversity = diversity
+    #     # FIX: Calculate and track genetic diversity
+    #     diversity = self._calculate_genetic_diversity(alive_agents)
+    #     self.diversity_history.append(diversity)
+    #     self.last_diversity = diversity
         
-        # Create new population
-        new_population = []
-        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+    #     # Create new population
+    #     new_population = []
+    #     population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
         
-        # FIX: Adaptive elitism based on diversity
-        if diversity > 0.3:
-            elite_count = max(1, population_size // 8)  # Normal elitism
-        else:
-            elite_count = max(1, population_size // 12)  # Reduced elitism when diversity is low
+    #     # FIX: Adaptive elitism based on diversity
+    #     if diversity > 0.3:
+    #         elite_count = max(1, population_size // 8)  # Normal elitism
+    #     else:
+    #         elite_count = max(1, population_size // 12)  # Reduced elitism when diversity is low
         
-        elite = sorted(alive_agents, key=lambda x: x.fitness, reverse=True)[:elite_count]
+    #     elite = sorted(alive_agents, key=lambda x: x.fitness, reverse=True)[:elite_count]
         
-        # Add elite agents
-        for agent in elite:
-            pos = random.choice(spawn_positions)
-            new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
-            new_population.append(new_agent)
+    #     # Add elite agents
+    #     for agent in elite:
+    #         pos = random.choice(spawn_positions)
+    #         new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
+    #         new_population.append(new_agent)
         
-        # Generate remaining population
-        while len(new_population) < population_size:
-            if len(alive_agents) >= 2:
-                parent1 = self._tournament_selection()
-                parent2 = self._tournament_selection()
+    #     # Generate remaining population
+    #     while len(new_population) < population_size:
+    #         if len(alive_agents) >= 2:
+    #             parent1 = self._tournament_selection()
+    #             parent2 = self._tournament_selection()
                 
-                # FIX: Adaptive crossover rate based on diversity
-                crossover_rate = config.CROSSOVER_RATE
-                if diversity < 0.2:
-                    crossover_rate *= 1.5  # Increase crossover when diversity is low
+    #             # FIX: Adaptive crossover rate based on diversity
+    #             crossover_rate = config.CROSSOVER_RATE
+    #             if diversity < 0.2:
+    #                 crossover_rate *= 1.5  # Increase crossover when diversity is low
                 
-                if random.random() < crossover_rate:
-                    child_genome = self._enhanced_crossover(parent1.genome, parent2.genome)
-                else:
-                    child_genome = parent1.genome
-            else:
-                child_genome = alive_agents[0].genome if alive_agents else Genome.random()
+    #             if random.random() < crossover_rate:
+    #                 child_genome = self._enhanced_crossover(parent1.genome, parent2.genome)
+    #             else:
+    #                 child_genome = parent1.genome
+    #         else:
+    #             child_genome = alive_agents[0].genome if alive_agents else Genome.random()
             
-            # FIX: Adaptive mutation rate based on diversity
-            mutation_rate = self._adaptive_mutation_rate(diversity)
-            if random.random() < mutation_rate:
-                child_genome = self._enhanced_mutate(child_genome, diversity)
+    #         # FIX: Adaptive mutation rate based on diversity
+    #         mutation_rate = self._adaptive_mutation_rate(diversity)
+    #         if random.random() < mutation_rate:
+    #             child_genome = self._enhanced_mutate(child_genome, diversity)
             
-            pos = random.choice(spawn_positions)
-            child = Agent(pos[0], pos[1], self.agent_type, child_genome)
-            new_population.append(child)
+    #         pos = random.choice(spawn_positions)
+    #         child = Agent(pos[0], pos[1], self.agent_type, child_genome)
+    #         new_population.append(child)
         
-        self.population = new_population
-        self.generation += 1
+    #     self.population = self.population + new_population
+    #     self.generation += 1
         
-        # FIX: Print diversity warning if needed
-        if diversity < 0.1:
-            print(f"Warning: Low genetic diversity ({diversity:.3f}) in {self.agent_type.value}")
+    #     # FIX: Print diversity warning if needed
+    #     if diversity < 0.1:
+    #         print(f"Warning: Low genetic diversity ({diversity:.3f}) in {self.agent_type.value}")
     
-    def _boost_population_diversity(self, spawn_positions: List[Tuple[int, int]], survivors: List[Agent]):
-        """FIX: Emergency diversity boost when population is critically low."""
-        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+    # def _boost_population_diversity(self, spawn_positions: List[Tuple[int, int]], survivors: List[Agent]):
+    #     """FIX: Emergency diversity boost when population is critically low."""
+    #     population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
         
-        self.population = []
+    #     self.population = []
         
-        # Keep survivors
-        for agent in survivors:
-            pos = random.choice(spawn_positions)
-            new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
-            self.population.append(new_agent)
+    #     # Keep survivors
+    #     for agent in survivors:
+    #         pos = random.choice(spawn_positions)
+    #         new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
+    #         self.population.append(new_agent)
         
-        # Add highly diverse new agents
-        while len(self.population) < population_size:
-            pos = random.choice(spawn_positions)
+    #     # Add highly diverse new agents
+    #     while len(self.population) < population_size:
+    #         pos = random.choice(spawn_positions)
             
-            # Create diverse genome
-            genome = Genome(
-                speed=random.uniform(0.1, 0.9),
-                sense=random.uniform(0.1, 0.9),
-                size=random.uniform(0.1, 0.9)
-            )
+    #         # Create diverse genome
+    #         genome = Genome(
+    #             speed=random.uniform(0.1, 0.9),
+    #             sense=random.uniform(0.1, 0.9),
+    #             size=random.uniform(0.1, 0.9)
+    #         )
             
-            new_agent = Agent(pos[0], pos[1], self.agent_type, genome)
-            self.population.append(new_agent)
+    #         new_agent = Agent(pos[0], pos[1], self.agent_type, genome)
+    #         self.population.append(new_agent)
     
     def _calculate_genetic_diversity(self, agents: List[Agent]) -> float:
         """FIX: Calculate actual genetic diversity of population."""
@@ -527,19 +527,156 @@ class GeneticAlgorithm:
         )
         return mutated_genome
     
+    # CHANGE 1: Replace the evolve_generation method (starting around line 427)
+    def evolve_generation(self, spawn_positions: List[Tuple[int, int]]):
+        """Evolution with controlled overlapping generations."""
+        if not self.population:
+            return
+            
+        # Filter alive agents ONCE
+        alive_agents = [agent for agent in self.population if agent.alive]
+        
+        # Handle extinction/low population
+        if len(alive_agents) < 3:
+            print(f"Population critically low in {self.agent_type.value}! Boosting diversity...")
+            self._boost_population_diversity(spawn_positions, alive_agents)
+            return
+        
+        # Record generation statistics
+        fitnesses = [agent.fitness for agent in alive_agents]
+        if fitnesses:
+            self.best_fitness_history.append(max(fitnesses))
+            self.avg_fitness_history.append(sum(fitnesses) / len(fitnesses))
+        
+        # Calculate and track genetic diversity
+        diversity = self._calculate_genetic_diversity(alive_agents)
+        self.diversity_history.append(diversity)
+        self.last_diversity = diversity
+        
+        # Population parameters
+        base_pop_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+        max_population = int(base_pop_size * 1.5)  # Allow 50% overpopulation
+        offspring_count = base_pop_size  # Always produce full generation of offspring
+        
+        # Population control - remove weakest if population would exceed limit
+        survivors = alive_agents
+        if len(alive_agents) + offspring_count > max_population:
+            # Sort by fitness (ascending) so we can remove weakest
+            alive_agents.sort(key=lambda x: x.fitness)
+            
+            # Calculate how many to keep
+            agents_to_keep = max_population - offspring_count
+            survivors = alive_agents[-agents_to_keep:]  # Keep the best
+            
+            print(f"  Population control: Keeping {agents_to_keep} best survivors out of {len(alive_agents)}")
+        
+        # Create offspring population
+        offspring = []
+        
+        # Adaptive elitism based on diversity
+        if diversity > 0.3:
+            elite_count = max(1, offspring_count // 8)
+        else:
+            elite_count = max(1, offspring_count // 12)
+        
+        elite = sorted(survivors, key=lambda x: x.fitness, reverse=True)[:elite_count]
+        
+        # Add elite offspring
+        for agent in elite:
+            if len(offspring) >= offspring_count:
+                break
+            pos = random.choice(spawn_positions)
+            new_agent = Agent(pos[0], pos[1], self.agent_type, agent.genome)
+            offspring.append(new_agent)
+        
+        # Generate remaining offspring
+        while len(offspring) < offspring_count:
+            if len(survivors) >= 2:
+                # IMPORTANT: Pass survivors to selection, not self.population
+                parent1 = self._tournament_selection_from_pool(survivors)
+                parent2 = self._tournament_selection_from_pool(survivors)
+                
+                # Adaptive crossover rate based on diversity
+                crossover_rate = config.CROSSOVER_RATE
+                if diversity < 0.2:
+                    crossover_rate *= 1.5
+                
+                if random.random() < crossover_rate:
+                    child_genome = self._enhanced_crossover(parent1.genome, parent2.genome)
+                else:
+                    child_genome = parent1.genome if random.random() < 0.5 else parent2.genome
+            else:
+                child_genome = survivors[0].genome if survivors else Genome.random()
+            
+            # Adaptive mutation
+            mutation_rate = self._adaptive_mutation_rate(diversity)
+            if random.random() < mutation_rate:
+                child_genome = self._enhanced_mutate(child_genome, diversity)
+            
+            pos = random.choice(spawn_positions)
+            child = Agent(pos[0], pos[1], self.agent_type, child_genome)
+            offspring.append(child)
+        
+        # CRITICAL CHANGE: Combine survivors + offspring (not old population + offspring)
+        self.population = survivors + offspring
+        self.generation += 1
+        
+        # Print generation summary
+        print(f"\nGeneration {self.generation} - {self.agent_type.value}:")
+        print(f"  Survivors: {len(survivors)}, Offspring: {len(offspring)}, Total: {len(self.population)}")
+        print(f"  Diversity: {diversity:.3f}")
+        
+        # Diversity warning if needed
+        if diversity < 0.1:
+            print(f"Warning: Low genetic diversity ({diversity:.3f}) in {self.agent_type.value}")
+
+
+    # CHANGE 2: Replace _tournament_selection method (around line 701)
     def _tournament_selection(self) -> Agent:
-        """Tournament selection with fallback handling."""
+        """Tournament selection from alive agents only."""
         alive_agents = [a for a in self.population if a.alive]
+        return self._tournament_selection_from_pool(alive_agents)
+
+
+    # CHANGE 3: Add this new method after _tournament_selection
+    def _tournament_selection_from_pool(self, candidate_pool: List[Agent]) -> Agent:
+        """Tournament selection from a specific pool of agents."""
+        if not candidate_pool:
+            # Emergency fallback
+            return Agent(0, 0, self.agent_type, Genome.random())
         
-        if not alive_agents:
-            return random.choice(self.population)
-        
-        tournament_size = min(config.TOURNAMENT_SIZE, len(alive_agents))
+        tournament_size = min(config.TOURNAMENT_SIZE, len(candidate_pool))
         if tournament_size == 0:
-            return random.choice(alive_agents)
+            return random.choice(candidate_pool)
         
-        tournament = random.sample(alive_agents, tournament_size)
+        tournament = random.sample(candidate_pool, tournament_size)
         return max(tournament, key=lambda x: x.fitness)
+
+
+    # CHANGE 4: Update _boost_population_diversity method (around line 543)
+    def _boost_population_diversity(self, spawn_positions: List[Tuple[int, int]], survivors: List[Agent]):
+        """Emergency diversity boost when population is critically low."""
+        population_size = config.POPULATION_SIZE_GA1 if self.agent_type == AgentType.COOPERATIVE else config.POPULATION_SIZE_GA2
+        
+        # Start with empty population
+        self.population = []
+        
+        # Keep survivors (they stay alive)
+        self.population.extend(survivors)
+        
+        # Add highly diverse new agents to reach population size
+        while len(self.population) < population_size:
+            pos = random.choice(spawn_positions)
+            
+            # Create diverse genome
+            genome = Genome(
+                speed=random.uniform(0.1, 0.9),
+                sense=random.uniform(0.1, 0.9),
+                size=random.uniform(0.1, 0.9)
+            )
+            
+            new_agent = Agent(pos[0], pos[1], self.agent_type, genome)
+            self.population.append(new_agent)
     
     def _print_population_stats(self):
         """Helper method to print population statistics."""
