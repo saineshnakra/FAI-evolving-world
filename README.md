@@ -29,3 +29,11 @@ This simulation framework enables study of evolutionary computation, algorithm c
 ## Academic Context
 
 Developed as part of an AI course project exploring genetic algorithms, artificial life, and evolutionary computation. Incorporates insights from NEAT, novelty search, and established ALIFE research methodologies.
+
+
+## Pre-requisites:
+`python = 3.11.5`
+
+
+## To install and run code:
+`make start`
